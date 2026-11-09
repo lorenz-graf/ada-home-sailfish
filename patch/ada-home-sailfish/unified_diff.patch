@@ -386,7 +386,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,436 @@
+@@ -0,0 +1,445 @@
 +/*
 + * ada-home-sailfish: the Home page of the text homescreen
 + * (clock, date, app slots and settings).
@@ -395,7 +395,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 + * - 0-8 app slots as text (default 4). Empty slot shows "App"; tap it for a
 + *   hint, long-press any slot to choose its app. On a filled slot, typing in
 + *   the search field and tapping "Rename" renames the slot instead.
-+ * - Long-press empty space: settings.
++ * - Long-press empty space: settings. Double tap empty space: display off
++ *   and lock (optional, like the stock Top menu lock button).
 + * Settings live in dconf under /desktop/lipstick-jolla-home/ada_home/.
 + * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
 + * Qt 5.6: plain ES5 JavaScript only.
@@ -596,6 +597,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: autoKeyboardConfig; key: root._path + "auto_keyboard"; defaultValue: true }
 +    ConfigurationValue { id: shadowLevelConfig; key: root._path + "shadow_level"; defaultValue: 1 }
 +    ConfigurationValue { id: textColorConfig; key: root._path + "text_color"; defaultValue: 0 }
++    ConfigurationValue { id: doubleTapLockConfig; key: root._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: appsGapConfig; key: root._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTopConfig; key: root._path + "margin_top"; defaultValue: 0 }
@@ -638,6 +640,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        visible: root.view === "" || root.view === "settings"
 +        enabled: root.view === ""
 +        onPressAndHold: root.openSettings()
++        // Same as the stock Top menu lock button: display off, then the
++        // device locks according to the normal lock settings
++        onDoubleClicked: {
++            if (doubleTapLockConfig.value) {
++                Lipstick.compositor.setDisplayOff()
++            }
++        }
 +
 +        Column {
 +            id: clockColumn
@@ -873,7 +882,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,200 @@
+@@ -0,0 +1,210 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space),
 + * with the options that make sense on Sailfish.
@@ -904,6 +913,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: autoKeyboard; key: settings._path + "auto_keyboard"; defaultValue: true }
 +    ConfigurationValue { id: shadowLevel; key: settings._path + "shadow_level"; defaultValue: 1 }
 +    ConfigurationValue { id: textColor; key: settings._path + "text_color"; defaultValue: 0 }
++    ConfigurationValue { id: doubleTapLock; key: settings._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTop; key: settings._path + "margin_top"; defaultValue: 0 }
@@ -1068,6 +1078,15 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                description: "Open the keyboard when the app list opens"
 +                checked: autoKeyboard.value
 +                onToggled: autoKeyboard.value = !autoKeyboard.value
++            }
++
++            SectionHeader { text: "Gestures" }
++
++            HomeSettingsSwitch {
++                label: "Double tap to lock"
++                description: "Double tap on empty space turns the display off"
++                checked: doubleTapLock.value
++                onToggled: doubleTapLock.value = !doubleTapLock.value
 +            }
 +        }
 +
