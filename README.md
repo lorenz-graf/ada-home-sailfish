@@ -78,9 +78,46 @@ Ada Home is a local Patchmanager patch (not in the Patchmanager web catalog). Pa
 
 If "Activate enabled patches when booting" is off in Patchmanager (the default), the patch has to be activated again after every reboot.
 
-### Conflicts
+### Other patches
 
-Two patches can change the same file as long as they change different lines. Ada Home doesn't change any status bar file, so status bar patches work alongside it. Tested together (homescreen files, both orders): `sfos-patch-status-bar`, `status-bar-compact-cellular`, `compact-cellular-indicator`, `homescreen-cover-icons`, `sfos-patch-launcher-list`.
+Patchmanager applies the active patches one after another. Two patches can change the same file as long as they change different lines. If they change the same lines, the one applied later fails to activate.
+
+**Active together with Ada Home on my phone:**
+
+| Patch | Version | What it changes |
+|---|---|---|
+| Launcher Search List (`sfos-patch-launcher-list`) | 0.2.6 | App Grid |
+| Compact Battery (`sfos-patch-compact-battery`) | 0.1.2 | Battery icon in the status bar |
+| Status Bar in apps + Compact Cellular (`status-bar-compact-cellular`) | 0.2.0-local1 | Status bar; also `compositor.qml` and `HomeLayer.qml`, but other lines than Ada Home. A local merge of the two patches below, not in the catalog |
+
+**Also checked:**
+
+- **Status Bar in apps** (`sfos-patch-status-bar` 0.2.0): used with Ada Home on the phone, works.
+- **Compact Cellular Indicator** (`compact-cellular-indicator` 1.0.0) and **Homescreen Running Apps Cover Icons** (`homescreen-cover-icons` 0.2.0): dry run only (both apply cleanly with Ada Home, in both orders), not used on the phone.
+- **Status Bar in apps** and **Compact Cellular Indicator** can't be active together, with or without Ada Home: with Status Bar in apps applied, Compact Cellular Indicator fails in `StatusArea.qml`. That's why I use the merged version above.
+
+**What to expect from other patches** (not tested unless listed above):
+
+- **Status bar patches** should work: Ada Home changes no status bar file. On Home it only sets the status bar colour and hides the status bar clock (and optionally the alarm bell) at runtime. A patch that replaces the clock or the alarm icon with its own item may stay visible on Home.
+- **App Grid, Silica and app patches** don't touch the files Ada Home changes.
+- **Events view patches:** Home replaces the Events list (it stays only on the lock screen), so anything a patch adds to the Events view won't show on Home.
+- **Cover patches:** changes to the cover itself (`SwitcherItem.qml`) should work. Patches that change the covers page layout (`Switcher.qml`) may conflict.
+- **Notification and Top menu patches** will likely conflict: Ada Home changes `TopMenu.qml`, `TopMenuNotifications.qml`, `NotificationListView.qml` and `NotificationStandardGroupItem.qml`.
+- **Patches that change `compositor.qml` or `HomeLayer.qml`** (page switching, edge swipes) may conflict, depending on the lines.
+
+<details>
+<summary>Stock files Ada Home changes, and how to check another patch</summary>
+
+All under `/usr/share/lipstick-jolla-home-qt5/`: `compositor.qml`, `layers/HomeLayer.qml`, `eventsview/EventsWindow.qml`, `switcher/Switcher.qml`, `notifications/NotificationListView.qml`, `notifications/NotificationStandardGroupItem.qml`, `topmenu/TopMenu.qml`, `topmenu/TopMenuNotifications.qml`. The other files in the patch are new.
+
+Files another patch changes: `grep '^+++ ' /usr/share/patchmanager/patches/<patch>/unified_diff.patch`. With Ada Home active and the other patch not active, a dry run shows whether the other patch still applies on top (nothing is changed):
+
+```
+cd / && patch -p1 --dry-run -N < /usr/share/patchmanager/patches/<patch>/unified_diff.patch
+```
+
+`FAILED` means the two patches change the same lines.
+</details>
 
 ## Undo
 
