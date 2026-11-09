@@ -386,7 +386,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,445 @@
+@@ -0,0 +1,583 @@
 +/*
 + * ada-home-sailfish: the Home page of the text homescreen
 + * (clock, date, app slots and settings).
@@ -397,6 +397,10 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 + *   the search field and tapping "Rename" renames the slot instead.
 + * - Long-press empty space: settings. Double tap empty space: display off
 + *   and lock (optional, like the stock Top menu lock button).
++ * - Swipe left/right that doesn't start at the screen edge: opens the swipe
++ *   app (default Calculator / Contacts), or switches page when set to Off. Edge
++ *   swipes stay with lipstick (HomeLayer.qml disables the mid-screen page
++ *   drag on Home).
 + * Settings live in dconf under /desktop/lipstick-jolla-home/ada_home/.
 + * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
 + * Qt 5.6: plain ES5 JavaScript only.
@@ -419,14 +423,21 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    readonly property int maximumSlots: 8
 +    readonly property string defaultClockApp: "/usr/share/applications/jolla-clock.desktop"
 +    readonly property string defaultDateApp: "/usr/share/applications/jolla-calendar.desktop"
++    // Default swipe apps: right to left (swipe left) = Calculator,
++    // left to right (swipe right) = Contacts
++    readonly property string defaultSwipeLeftApp: "/usr/share/applications/jolla-calculator.desktop"
++    readonly property string defaultSwipeRightApp: "/usr/share/applications/jolla-contacts.desktop"
 +    readonly property QtObject launcherModel: Lipstick.compositor.launcherModel
 +    readonly property string _path: "/desktop/lipstick-jolla-home/ada_home/"
 +
 +    // "" = home, "picker" = choose an app, "settings"
 +    property string view
-+    // What the picker chooses for: "slot", "clock" or "date"
++    // What the picker chooses for: "slot", "clock", "date", "swipeLeft", "swipeRight"
 +    property string pickerTarget
 +    property int pickerSlot: -1
++    readonly property bool pickerForSwipe: pickerTarget === "swipeLeft" || pickerTarget === "swipeRight"
++    // View to return to when the picker closes (Settings opens it for the swipe apps)
++    property string _returnView
 +
 +    // All apps (LauncherItems) sorted by name; rebuilt when the App Grid changes
 +    property var launcherItems: []
@@ -520,7 +531,61 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    }
 +
 +    function _targetConfig(target) {
-+        return target === "clock" ? clockAppConfig : dateAppConfig
++        return target === "clock" ? clockAppConfig
++             : target === "swipeLeft" ? swipeLeftConfig
++             : target === "swipeRight" ? swipeRightConfig
++             : dateAppConfig
++    }
++
++    // Name shown in Settings for a swipe app ("Off" when switched off or gone)
++    function swipeAppName(target) {
++        var value = _targetConfig(target).value
++        var item = value === "off" ? null : findItem(value)
++        return item ? item.title : "Off"
++    }
++
++    // Swipe that didn't start at the screen edge (direction: where the finger moved)
++    function swipe(direction) {
++        var value = _targetConfig(direction === "left" ? "swipeLeft" : "swipeRight").value
++        var item = value === "off" ? null : findItem(value)
++        if (item) {
++            launch(item)
++        } else {
++            // Off (or app gone): switch page like the stock mid-screen swipe
++            Lipstick.compositor.homeLayer.setCurrentItem(Lipstick.compositor.switcherLayer, true, direction)
++        }
++    }
++
++    // Swipe detection, used by the empty space, the clock, the date and the slots.
++    // Starts within edgeWidth of the screen edge are left alone (lipstick's edge swipes).
++    property real _swipeX
++    property real _swipeY
++    property double _swipeTime
++    property bool swiped
++
++    function swipeBegin(item, mouse) {
++        var p = item.mapToItem(root, mouse.x, mouse.y)
++        _swipeX = p.x
++        _swipeY = p.y
++        _swipeTime = Date.now()
++        swiped = false
++    }
++
++    // Returns true if this release finished a swipe (then don't treat it as a tap)
++    function swipeEnd(item, mouse) {
++        var p = item.mapToItem(root, mouse.x, mouse.y)
++        var dx = p.x - _swipeX
++        var dy = p.y - _swipeY
++        var edgeWidth = Theme.paddingLarge * 2
++        if (_swipeX < edgeWidth || _swipeX > width - edgeWidth
++                || Math.abs(dx) < Theme.itemSizeSmall
++                || Math.abs(dx) < 2 * Math.abs(dy)
++                || Date.now() - _swipeTime > 1000) {
++            return false
++        }
++        swiped = true
++        swipe(dx < 0 ? "left" : "right")
++        return true
 +    }
 +
 +    // The app the clock or the date opens: the chosen one if it is still
@@ -537,6 +602,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    }
 +
 +    function openPicker(target, slot) {
++        _returnView = view === "settings" ? "settings" : ""
 +        refresh()
 +        pickerTarget = target
 +        pickerSlot = slot === undefined ? -1 : slot
@@ -551,7 +617,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +
 +    function closeView() {
 +        picker.close()
-+        view = ""
++        view = _returnView
++        _returnView = ""
 +    }
 +
 +    function showHint(text) {
@@ -597,6 +664,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: autoKeyboardConfig; key: root._path + "auto_keyboard"; defaultValue: true }
 +    ConfigurationValue { id: shadowLevelConfig; key: root._path + "shadow_level"; defaultValue: 1 }
 +    ConfigurationValue { id: textColorConfig; key: root._path + "text_color"; defaultValue: 0 }
++    ConfigurationValue { id: swipeLeftConfig; key: root._path + "swipe_left_app"; defaultValue: root.defaultSwipeLeftApp }
++    ConfigurationValue { id: swipeRightConfig; key: root._path + "swipe_right_app"; defaultValue: root.defaultSwipeRightApp }
 +    ConfigurationValue { id: doubleTapLockConfig; key: root._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: appsGapConfig; key: root._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
@@ -631,19 +700,95 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        return sideMargin - Theme.paddingMedium
 +    }
 +
-+    // Home view
++    // Home view. One touch area handles everything (tap, long-press, double
++    // tap, swipe) and works out what is under the finger. Separate touch
++    // items per app would cancel the press as soon as the finger moves, so a
++    // swipe starting on an app or the clock would get lost.
 +    MouseArea {
 +        id: homeArea
++
++        // What was pressed: "" (empty space), "clock", "date" or "slot<n>"
++        property string pressedTarget
++        // The finger moved beyond the drag threshold: no tap, no long-press
++        property bool moved
++
++        function _hit(item, x, y) {
++            var p = homeArea.mapToItem(item, x, y)
++            return item.visible && p.x >= 0 && p.y >= 0 && p.x < item.width && p.y < item.height
++        }
++
++        function targetAt(x, y) {
++            if (clockColumn.visible) {
++                if (_hit(clockButton, x, y)) {
++                    return "clock"
++                }
++                if (_hit(dateButton, x, y)) {
++                    return "date"
++                }
++            }
++            for (var i = 0; i < slotRepeater.count; ++i) {
++                var item = slotRepeater.itemAt(i)
++                if (item && _hit(item, x, y)) {
++                    return "slot" + i
++                }
++            }
++            return ""
++        }
++
++        function isPressed(target) {
++            return pressed && !moved && pressedTarget === target
++        }
 +
 +        anchors.fill: parent
 +        // In Settings the clock and date stay visible as a live preview
 +        visible: root.view === "" || root.view === "settings"
 +        enabled: root.view === ""
-+        onPressAndHold: root.openSettings()
++
++        onPressed: {
++            root.swipeBegin(homeArea, mouse)
++            moved = false
++            pressedTarget = targetAt(mouse.x, mouse.y)
++        }
++        onPositionChanged: {
++            if (!moved && (Math.abs(mouse.x - root._swipeX) > Theme.startDragDistance
++                           || Math.abs(mouse.y - root._swipeY) > Theme.startDragDistance)) {
++                moved = true
++            }
++        }
++        onReleased: root.swipeEnd(homeArea, mouse)
++        onCanceled: moved = true
++
++        onClicked: {
++            if (root.swiped || moved) {
++                return
++            }
++            if (pressedTarget === "clock" || pressedTarget === "date") {
++                root.launch(root.targetItem(pressedTarget))
++            } else if (pressedTarget.indexOf("slot") === 0) {
++                var item = root.slotItem(parseInt(pressedTarget.substring(4)))
++                if (item) {
++                    root.launch(item)
++                } else {
++                    root.showHint("Long press to select app")
++                }
++            }
++        }
++        onPressAndHold: {
++            if (moved) {
++                return
++            }
++            if (pressedTarget === "clock" || pressedTarget === "date") {
++                root.openPicker(pressedTarget)
++            } else if (pressedTarget.indexOf("slot") === 0) {
++                root.openPicker("slot", parseInt(pressedTarget.substring(4)))
++            } else {
++                root.openSettings()
++            }
++        }
 +        // Same as the stock Top menu lock button: display off, then the
 +        // device locks according to the normal lock settings
 +        onDoubleClicked: {
-+            if (doubleTapLockConfig.value) {
++            if (pressedTarget === "" && doubleTapLockConfig.value) {
 +                Lipstick.compositor.setDisplayOff()
 +            }
 +        }
@@ -657,39 +802,31 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +            layer.enabled: root.shadowLevel > 0
 +            layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: root.textColor }
 +
-+            BackgroundItem {
++            Item {
 +                id: clockButton
 +
 +                x: root.alignedX(width)
 +                width: clock.width + 2 * Theme.paddingMedium
 +                height: visible ? clock.height : 0
 +                visible: dateTimeConfig.value === 1
-+                enabled: root.view === ""
-+                highlightedColor: "transparent"
-+                onClicked: root.launch(root.targetItem("clock"))
-+                onPressAndHold: root.openPicker("clock")
 +
 +                ClockItem {
 +                    id: clock
 +
 +                    x: Theme.paddingMedium
 +                    updatesEnabled: root.active
-+                    color: clockButton.highlighted ? root.pressedColor : root.textColor
++                    color: homeArea.isPressed("clock") ? root.pressedColor : root.textColor
 +                    font.pixelSize: Theme.fontSizeHuge * 1.5 * root.textScale
 +                    font.bold: boldConfig.value
 +                }
 +            }
 +
-+            BackgroundItem {
++            Item {
 +                id: dateButton
 +
 +                x: root.alignedX(width)
 +                width: dateLabel.width + 2 * Theme.paddingMedium
 +                height: dateLabel.height + 2 * Theme.paddingSmall
-+                enabled: root.view === ""
-+                highlightedColor: "transparent"
-+                onClicked: root.launch(root.targetItem("date"))
-+                onPressAndHold: root.openPicker("date")
 +
 +                Label {
 +                    id: dateLabel
@@ -697,7 +834,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                    x: Theme.paddingMedium
 +                    y: Theme.paddingSmall
 +                    text: Qt.formatDate(clock.time, "ddd, d MMM")
-+                    color: dateButton.highlighted ? root.pressedColor : root.dimTextColor
++                    color: homeArea.isPressed("date") ? root.pressedColor : root.dimTextColor
 +                    font.pixelSize: Theme.fontSizeMedium * root.textScale
 +                    font.bold: boldConfig.value
 +                }
@@ -725,9 +862,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                 : Math.max(contentTop + Theme.paddingLarge, contentTop + (contentBottom - contentTop - height) / 2)
 +
 +            Repeater {
++                id: slotRepeater
++
 +                model: root.slotCount
 +
-+                delegate: BackgroundItem {
++                delegate: Item {
 +                    id: slot
 +
 +                    readonly property string label: (root.launcherItems, slotAppsConfig.value,
@@ -735,16 +874,6 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +
 +                    width: slotsColumn.width
 +                    height: slotText.height + 2 * Theme.paddingMedium
-+                    highlightedColor: "transparent"
-+                    onClicked: {
-+                        var item = root.slotItem(index)
-+                        if (item) {
-+                            root.launch(item)
-+                        } else {
-+                            root.showHint("Long press to select app")
-+                        }
-+                    }
-+                    onPressAndHold: root.openPicker("slot", index)
 +
 +                    Label {
 +                        id: slotText
@@ -754,7 +883,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                        anchors.verticalCenter: parent.verticalCenter
 +                        horizontalAlignment: root.textAlignment
 +                        text: slot.label.length > 0 ? slot.label : "App"
-+                        color: slot.highlighted ? root.pressedColor
++                        color: homeArea.isPressed("slot" + index) ? root.pressedColor
 +                             : slot.label.length > 0 ? root.textColor
 +                             : Qt.rgba(root.dimTextColor.r, root.dimTextColor.g, root.dimTextColor.b, Theme.opacityLow)
 +                        font.pixelSize: Theme.fontSizeLarge * root.textScale
@@ -792,10 +921,16 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        autoKeyboard: autoKeyboardConfig.value
 +        title: root.pickerTarget === "clock" ? "App for the clock"
 +             : root.pickerTarget === "date" ? "App for the date"
++             : root.pickerTarget === "swipeLeft" ? "Swipe left app"
++             : root.pickerTarget === "swipeRight" ? "Swipe right app"
 +             : "Select an app"
-+        showDefault: root.pickerTarget === "clock" || root.pickerTarget === "date"
-+        defaultLabel: root.pickerTarget === "clock" ? "Default (Clock)" : "Default (Calendar)"
-+        defaultSelected: showDefault && !root._targetConfig(root.pickerTarget).value
++        showDefault: root.pickerTarget !== "slot"
++        defaultLabel: root.pickerTarget === "clock" ? "Default (Clock)"
++                    : root.pickerTarget === "date" ? "Default (Calendar)"
++                    : "Off (swipe switches the page)"
++        defaultSelected: showDefault && (root.pickerForSwipe
++                                         ? root._targetConfig(root.pickerTarget).value === "off"
++                                         : !root._targetConfig(root.pickerTarget).value)
 +        selectedPath: root.pickerTarget === "slot"
 +                      ? (slotAppsConfig.value, root._array(slotAppsConfig.value)[root.pickerSlot] || "")
 +                      : (root._targetConfig(root.pickerTarget).value || "")
@@ -812,7 +947,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +            root.closeView()
 +        }
 +        onDefaultPicked: {
-+            root._targetConfig(root.pickerTarget).value = ""
++            root._targetConfig(root.pickerTarget).value = root.pickerForSwipe ? "off" : ""
 +            root.closeView()
 +        }
 +        onRenamed: {
@@ -829,6 +964,9 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        // Below the clock and date, which stay visible as a live preview
 +        topMargin: clockColumn.visible ? clockColumn.y + clockColumn.height + Theme.paddingSmall
 +                                       : root.statusBarHeight
++        swipeLeftName: (root.launcherItems, swipeLeftConfig.value, root.swipeAppName("swipeLeft"))
++        swipeRightName: (root.launcherItems, swipeRightConfig.value, root.swipeAppName("swipeRight"))
++        onPickApp: root.openPicker(target)
 +        onDone: root.closeView()
 +    }
 +}
@@ -882,7 +1020,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,210 @@
+@@ -0,0 +1,227 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space),
 + * with the options that make sense on Sailfish.
@@ -900,7 +1038,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +
 +    property real topMargin
 +
++    property string swipeLeftName
++    property string swipeRightName
++
 +    signal done()
++    signal pickApp(string target)
 +
 +    readonly property string _path: "/desktop/lipstick-jolla-home/ada_home/"
 +
@@ -1081,6 +1223,19 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +            }
 +
 +            SectionHeader { text: "Gestures" }
++
++            // Tap opens the app list (with an "Off" entry)
++            HomeSettingsChoice {
++                label: "Swipe left app"
++                choices: [settings.swipeLeftName]
++                onChosen: settings.pickApp("swipeLeft")
++            }
++
++            HomeSettingsChoice {
++                label: "Swipe right app"
++                choices: [settings.swipeRightName]
++                onChosen: settings.pickApp("swipeRight")
++            }
 +
 +            HomeSettingsSwitch {
 +                label: "Double tap to lock"
@@ -1265,7 +1420,18 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
  
      peekFilter {
          leftEnabled: Lipstick.compositor.systemInitComplete
-@@ -160,6 +160,8 @@
+@@ -108,7 +108,10 @@
+         threshold: homescreen._minimizeThreshold
+     }
+ 
++    // ada-home-sailfish: on Home a swipe that doesn't start at the edge opens the
++    // swipe app (HomeFavourites.qml); edge swipes still switch page (peekFilter)
+     dragArea.enabled: !currentItem.maximized && Lipstick.compositor.systemInitComplete
++                      && currentItem !== eventsLayer
+ 
+     switchThreshold: dragArea.drag.threshold * 1.5
+     flickDuration: 200 // matching Launcher and edge layer flick speed
+@@ -160,6 +163,8 @@
              property real opacityFromY: Math.max(0, (height + y*1.5) / height)
  
              backgroundVisible: true
@@ -1274,7 +1440,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
              y: -currentItem.statusOffset * (1.0 - homescreen.progress)
                 - (alternateItem ? alternateItem.statusOffset * homescreen.progress : 0)
              updatesEnabled: Lipstick.compositor.homeActive
-@@ -181,8 +183,6 @@
+@@ -181,8 +186,6 @@
              width: homescreen.width
              height: homescreen.height
  
@@ -1283,7 +1449,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
              anchors { leftMargin: leftItem.minimizeMargin }
          },
          SwitcherLayer {
-@@ -207,6 +207,8 @@
+@@ -207,6 +210,8 @@
              leftItem: eventsLayer
              rightItem: eventsLayer
  
@@ -1292,7 +1458,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
              width: homescreen.width
              height: homescreen.height
  
-@@ -270,7 +272,7 @@
+@@ -270,7 +275,7 @@
  
                      if (layer.isCurrentItem) {
                          layer.cleanup = cleanup
