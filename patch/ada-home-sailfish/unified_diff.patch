@@ -111,7 +111,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/
 +            anchors.fill: parent
 +            statusBarHeight: Lipstick.compositor.homeLayer.statusBar.baseY
 +                             + Lipstick.compositor.homeLayer.statusBar.height
-+            active: Lipstick.compositor.eventsLayer.visible
++            active: !!Lipstick.compositor && Lipstick.compositor.eventsLayer.visible
 +        }
 +
          Timer {
@@ -596,6 +596,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: autoKeyboardConfig; key: root._path + "auto_keyboard"; defaultValue: true }
 +    ConfigurationValue { id: shadowLevelConfig; key: root._path + "shadow_level"; defaultValue: 1 }
 +    ConfigurationValue { id: textColorConfig; key: root._path + "text_color"; defaultValue: 0 }
++    ConfigurationValue { id: appsGapConfig; key: root._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTopConfig; key: root._path + "margin_top"; defaultValue: 0 }
 +    ConfigurationValue { id: marginBottomConfig; key: root._path + "margin_bottom"; defaultValue: 0 }
@@ -705,11 +706,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +            visible: root.view === ""
 +            layer.enabled: root.shadowLevel > 0
 +            layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: root.textColor }
-+            // Bottom: aligned to the bottom margin. Otherwise centred between
-+            // the clock and the bottom margin, never above the clock
++            // Bottom: aligned to the bottom margin. Otherwise a fixed distance
++            // below the clock (Settings: clock to apps distance), or "Auto":
++            // centred between the clock and the bottom margin
 +            y: bottomConfig.value
 +               ? Math.max(contentTop, contentBottom - height - Theme.itemSizeLarge)
-+               : Math.max(contentTop + Theme.paddingLarge, contentTop + (contentBottom - contentTop - height) / 2)
++               : appsGapConfig.value > 0
++                 ? contentTop + appsGapConfig.value * Theme.paddingLarge
++                 : Math.max(contentTop + Theme.paddingLarge, contentTop + (contentBottom - contentTop - height) / 2)
 +
 +            Repeater {
 +                model: root.slotCount
@@ -787,8 +791,6 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                      ? (slotAppsConfig.value, root._array(slotAppsConfig.value)[root.pickerSlot] || "")
 +                      : (root._targetConfig(root.pickerTarget).value || "")
 +        // Rename only for a slot that already has an app
-+        layer.enabled: visible && root.shadowLevel > 0
-+        layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: Theme.primaryColor }
 +        renameAllowed: root.pickerTarget === "slot" && root.pickerSlot >= 0
 +                       && (slotAppsConfig.value, root.slotItem(root.pickerSlot) !== null)
 +
@@ -818,15 +820,60 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        // Below the clock and date, which stay visible as a live preview
 +        topMargin: clockColumn.visible ? clockColumn.y + clockColumn.height + Theme.paddingSmall
 +                                       : root.statusBarHeight
-+        layer.enabled: visible && root.shadowLevel > 0
-+        layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: Theme.primaryColor }
 +        onDone: root.closeView()
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml
+@@ -0,0 +1,43 @@
++/*
++ * ada-home-sailfish: settings row "label   value"; tap cycles through the
++ * choices. The value sits in the shared input column (valueX) so it isn't
++ * mistaken for a right-aligned section title.
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++
++BackgroundItem {
++    id: choice
++
++    property string label
++    property var choices: []      // texts, index = value
++    property int value
++    property real valueX: width * 0.55
++
++    signal chosen(int newValue)
++
++    width: parent ? parent.width : 0
++    height: Math.max(Theme.itemSizeSmall, nameLabel.height + 2 * Theme.paddingSmall)
++    onClicked: chosen((value + 1) % choices.length)
++
++    Label {
++        id: nameLabel
++
++        x: Theme.horizontalPageMargin
++        width: choice.valueX - x - Theme.paddingLarge
++        anchors.verticalCenter: parent.verticalCenter
++        text: choice.label
++        wrapMode: Text.Wrap
++    }
++
++    Label {
++        x: choice.valueX
++        width: parent.width - x - Theme.horizontalPageMargin
++        anchors.verticalCenter: parent.verticalCenter
++        text: choice.choices.length > 0 ? choice.choices[Math.max(0, Math.min(choice.choices.length - 1, choice.value))] : ""
++        color: Theme.highlightColor
++        truncationMode: TruncationMode.Fade
 +    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,244 @@
+@@ -0,0 +1,200 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space),
 + * with the options that make sense on Sailfish.
@@ -857,6 +904,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: autoKeyboard; key: settings._path + "auto_keyboard"; defaultValue: true }
 +    ConfigurationValue { id: shadowLevel; key: settings._path + "shadow_level"; defaultValue: 1 }
 +    ConfigurationValue { id: textColor; key: settings._path + "text_color"; defaultValue: 0 }
++    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTop; key: settings._path + "margin_top"; defaultValue: 0 }
 +    ConfigurationValue { id: marginBottom; key: settings._path + "margin_bottom"; defaultValue: 0 }
@@ -926,56 +974,30 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                onStepped: slotCount.value = newValue
 +            }
 +
-+            // Tap to cycle through the choices
-+            BackgroundItem {
-+                width: parent.width
-+                onClicked: dateTime.value = (dateTime.value + 1) % 3
-+
-+                Label {
-+                    x: Theme.horizontalPageMargin
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    text: "Show date time"
-+                }
-+                Label {
-+                    anchors {
-+                        right: parent.right
-+                        rightMargin: Theme.horizontalPageMargin
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    // 1 = clock and date, 0 = off, 2 = date only
-+                    text: dateTime.value === 0 ? "Off" : dateTime.value === 2 ? "Date only" : "On"
-+                    color: Theme.highlightColor
-+                }
++            HomeSettingsChoice {
++                label: "Show date time"
++                // 1 = clock and date, 0 = off, 2 = date only
++                choices: ["Off", "On", "Date only"]
++                value: dateTime.value
++                onChosen: dateTime.value = newValue
 +            }
 +
-+            BackgroundItem {
-+                width: parent.width
-+                onClicked: alignment.value = (alignment.value + 1) % 3
 +
-+                Label {
-+                    x: Theme.horizontalPageMargin
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    text: "App alignment"
-+                }
-+                Label {
-+                    anchors {
-+                        right: parent.right
-+                        rightMargin: Theme.horizontalPageMargin
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    text: alignment.value === 1 ? "Center" : alignment.value === 2 ? "Right" : "Left"
-+                    color: Theme.highlightColor
-+                }
++            HomeSettingsChoice {
++                label: "App alignment"
++                choices: ["Left", "Center", "Right"]
++                value: alignment.value
++                onChosen: alignment.value = newValue
 +            }
 +
-+            TextSwitch {
-+                text: "Apps at the bottom"
-+                automaticCheck: false
-+                checked: bottom.value
-+                onClicked: bottom.value = !bottom.value
-+            }
 +
 +            SectionHeader { text: "Layout" }
++
++            HomeSettingsSwitch {
++                label: "Apps at the bottom"
++                checked: bottom.value
++                onToggled: bottom.value = !bottom.value
++            }
 +
 +            // Margins in steps of Theme.paddingLarge, added to the default layout
 +            HomeSettingsStepper {
@@ -990,6 +1012,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                value: marginTop.value
 +                maximum: 20
 +                onStepped: marginTop.value = newValue
++            }
++
++            HomeSettingsStepper {
++                label: "Clock to apps distance"
++                value: appsGap.value
++                maximum: 20
++                minimumText: "Auto"
++                onStepped: appsGap.value = newValue
 +            }
 +
 +            HomeSettingsStepper {
@@ -1011,60 +1041,33 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                onStepped: textScale.value = newValue
 +            }
 +
-+            TextSwitch {
-+                text: "Bold font"
-+                automaticCheck: false
++            HomeSettingsSwitch {
++                label: "Bold font"
 +                checked: bold.value
-+                onClicked: bold.value = !bold.value
++                onToggled: bold.value = !bold.value
 +            }
 +
-+            BackgroundItem {
-+                width: parent.width
-+                onClicked: shadowLevel.value = (shadowLevel.value + 1) % 4
-+
-+                Label {
-+                    x: Theme.horizontalPageMargin
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    text: "Text shadow"
-+                }
-+                Label {
-+                    anchors {
-+                        right: parent.right
-+                        rightMargin: Theme.horizontalPageMargin
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    text: ["Off", "Small", "Medium", "Large"][Math.max(0, Math.min(3, shadowLevel.value))]
-+                    color: Theme.highlightColor
-+                }
++            HomeSettingsChoice {
++                label: "Text shadow"
++                choices: ["Off", "Small", "Medium", "Large"]
++                value: shadowLevel.value
++                onChosen: shadowLevel.value = newValue
 +            }
 +
-+            BackgroundItem {
-+                width: parent.width
-+                onClicked: textColor.value = (textColor.value + 1) % 4
 +
-+                Label {
-+                    x: Theme.horizontalPageMargin
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    text: "Text color"
-+                }
-+                Label {
-+                    anchors {
-+                        right: parent.right
-+                        rightMargin: Theme.horizontalPageMargin
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    // Ambience colours are chosen by the ambience to contrast with it
-+                    text: ["Ambience", "Ambience highlight", "White", "Black"][Math.max(0, Math.min(3, textColor.value))]
-+                    color: Theme.highlightColor
-+                }
++            HomeSettingsChoice {
++                label: "Text color"
++                // Ambience colours are chosen by the ambience to contrast with it
++                choices: ["Ambience", "Ambience highlight", "White", "Black"]
++                value: textColor.value
++                onChosen: textColor.value = newValue
 +            }
 +
-+            TextSwitch {
-+                text: "Auto show keyboard"
++            HomeSettingsSwitch {
++                label: "Auto show keyboard"
 +                description: "Open the keyboard when the app list opens"
-+                automaticCheck: false
 +                checked: autoKeyboard.value
-+                onClicked: autoKeyboard.value = !autoKeyboard.value
++                onToggled: autoKeyboard.value = !autoKeyboard.value
 +            }
 +        }
 +
@@ -1074,7 +1077,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
-@@ -0,0 +1,68 @@
+@@ -0,0 +1,67 @@
 +/*
 + * ada-home-sailfish: settings row "label  [-] value [+]".
 + * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
@@ -1092,6 +1095,10 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
 +    property real maximum: 10
 +    property real step: 1
 +    property int decimals: 0
++    // Shown instead of the minimum value, e.g. "Auto"
++    property string minimumText
++    // Left edge of the input column, shared by all settings rows
++    property real valueX: width * 0.55
 +
 +    signal stepped(real newValue)
 +
@@ -1101,28 +1108,22 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
 +    }
 +
 +    width: parent ? parent.width : 0
-+    height: Theme.itemSizeSmall
++    height: Math.max(Theme.itemSizeSmall, buttons.height)
 +
 +    Label {
-+        anchors {
-+            left: parent.left
-+            leftMargin: Theme.horizontalPageMargin
-+            right: buttons.left
-+            rightMargin: Theme.paddingMedium
-+            verticalCenter: parent.verticalCenter
-+        }
++        x: Theme.horizontalPageMargin
++        width: stepper.valueX - x - Theme.paddingLarge
++        anchors.verticalCenter: parent.verticalCenter
 +        text: stepper.label
-+        truncationMode: TruncationMode.Fade
++        wrapMode: Text.Wrap
 +    }
 +
 +    Row {
 +        id: buttons
 +
-+        anchors {
-+            right: parent.right
-+            rightMargin: Theme.horizontalPageMargin - Theme.paddingMedium
-+            verticalCenter: parent.verticalCenter
-+        }
++        // The minus icon (not its touch area) starts at valueX
++        x: stepper.valueX - (Theme.itemSizeSmall - Theme.iconSizeMedium) / 2
++        anchors.verticalCenter: parent.verticalCenter
 +
 +        IconButton {
 +            icon.source: "image://theme/icon-m-remove"
@@ -1130,10 +1131,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
 +            onClicked: stepper.stepped(Math.max(stepper.minimum, stepper._round(stepper.value - stepper.step)))
 +        }
 +        Label {
-+            width: Theme.itemSizeSmall
++            width: Math.max(Theme.itemSizeSmall, implicitWidth)
 +            anchors.verticalCenter: parent.verticalCenter
 +            horizontalAlignment: Text.AlignHCenter
-+            text: Number(stepper.value).toFixed(stepper.decimals)
++            text: stepper.minimumText.length > 0 && stepper.value <= stepper.minimum
++                  ? stepper.minimumText : Number(stepper.value).toFixed(stepper.decimals)
 +            color: Theme.highlightColor
 +        }
 +        IconButton {
@@ -1141,6 +1143,64 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
 +            enabled: stepper.value < stepper.maximum - stepper.step / 2
 +            onClicked: stepper.stepped(Math.min(stepper.maximum, stepper._round(stepper.value + stepper.step)))
 +        }
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsSwitch.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsSwitch.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsSwitch.qml
+@@ -0,0 +1,54 @@
++/*
++ * ada-home-sailfish: settings row "label (description)   [switch]", with
++ * the switch in the shared input column (valueX).
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++
++BackgroundItem {
++    id: row
++
++    property string label
++    property string description
++    property bool checked
++    property real valueX: width * 0.55
++
++    signal toggled()
++
++    width: parent ? parent.width : 0
++    height: Math.max(Theme.itemSizeSmall, texts.height + 2 * Theme.paddingSmall)
++    onClicked: toggled()
++
++    Column {
++        id: texts
++
++        x: Theme.horizontalPageMargin
++        width: row.valueX - x - Theme.paddingLarge
++        anchors.verticalCenter: parent.verticalCenter
++
++        Label {
++            width: parent.width
++            text: row.label
++            wrapMode: Text.Wrap
++        }
++        Label {
++            width: parent.width
++            visible: text.length > 0
++            text: row.description
++            wrapMode: Text.Wrap
++            font.pixelSize: Theme.fontSizeExtraSmall
++            color: Theme.secondaryColor
++        }
++    }
++
++    Switch {
++        // Line the switch glyph up with the other inputs' left edge
++        x: row.valueX - (width - Theme.iconSizeMedium) / 2
++        anchors.verticalCenter: parent.verticalCenter
++        automaticCheck: false
++        checked: row.checked
++        onClicked: row.toggled()
 +    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeTextShadow.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeTextShadow.qml
