@@ -386,7 +386,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,678 @@
+@@ -0,0 +1,713 @@
 +/*
 + * ada-home-sailfish: the Home page.
 + * - Big clock and date. Tap: opens the chosen app (default Clock /
@@ -649,6 +649,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        _migrate()
 +        refresh()
 +        _statusClock = _findClock(_statusBar)
++        _statusAlarmBell = _findAlarmBell(_statusBar)
 +    }
 +
 +    ConfigurationValue { id: slotAppsConfig; key: root._path + "slot_apps"; defaultValue: [] }
@@ -668,6 +669,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: swipeRightConfig; key: root._path + "swipe_right_app"; defaultValue: root.defaultSwipeRightApp }
 +    ConfigurationValue { id: doubleTapLockConfig; key: root._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: hideStatusBarConfig; key: root._path + "hide_status_bar"; defaultValue: false }
++    ConfigurationValue { id: hideAlarmBellConfig; key: root._path + "hide_alarm_bell"; defaultValue: false }
 +    ConfigurationValue { id: appsGapConfig; key: root._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTopConfig; key: root._path + "margin_top"; defaultValue: 0 }
@@ -700,6 +702,33 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    readonly property bool _homeShown: !!Lipstick.compositor && Lipstick.compositor.homeActive
 +                                       && Lipstick.compositor.homeLayer.currentItem === Lipstick.compositor.eventsLayer
 +    property Item _statusClock
++    property Item _statusAlarmBell
++
++    // The alarm indicator: an Icon showing image://theme/icon-status-alarm
++    function _findAlarmBell(item) {
++        if (!item) {
++            return null
++        }
++        if (item.hasOwnProperty("source") && String(item.source).indexOf("icon-status-alarm") !== -1) {
++            return item
++        }
++        for (var i = 0; i < item.children.length; ++i) {
++            var found = _findAlarmBell(item.children[i])
++            if (found) {
++                return found
++            }
++        }
++        return null
++    }
++
++    // Settings: Hide alarm bell. Everywhere this status bar is shown; the
++    // active alarms are listed on the covers page instead.
++    Binding {
++        target: root._statusAlarmBell
++        property: "visible"
++        value: false
++        when: !!root._statusAlarmBell && hideAlarmBellConfig.value
++    }
 +
 +    function _findClock(item) {
 +        if (!item) {
@@ -723,11 +752,17 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        if (_homeShown && !_statusClock) {
 +            _statusClock = _findClock(_statusBar)
 +        }
++        if (_homeShown && !_statusAlarmBell) {
++            _statusAlarmBell = _findAlarmBell(_statusBar)
++        }
 +        if (!_homeShown) {
 +            _statusRevealed = false
 +        }
 +    }
-+    on_StatusBarChanged: _statusClock = _findClock(_statusBar)
++    on_StatusBarChanged: {
++        _statusClock = _findClock(_statusBar)
++        _statusAlarmBell = _findAlarmBell(_statusBar)
++    }
 +
 +    Binding {
 +        target: root._statusBar
@@ -1115,7 +1150,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,242 @@
+@@ -0,0 +1,250 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1151,6 +1186,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: textColor; key: settings._path + "text_color"; defaultValue: 0 }
 +    ConfigurationValue { id: doubleTapLock; key: settings._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: hideStatusBar; key: settings._path + "hide_status_bar"; defaultValue: false }
++    ConfigurationValue { id: hideAlarmBell; key: settings._path + "hide_alarm_bell"; defaultValue: false }
 +    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
@@ -1323,6 +1359,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                description: "On Home it shows up for a moment when you touch the screen"
 +                checked: hideStatusBar.value
 +                onToggled: hideStatusBar.value = !hideStatusBar.value
++            }
++
++            HomeSettingsSwitch {
++                label: "Hide alarm bell"
++                description: "In the status bar. Active alarms are always listed on the second page"
++                checked: hideAlarmBell.value
++                onToggled: hideAlarmBell.value = !hideAlarmBell.value
 +            }
 +
 +            HomeSettingsSwitch {
@@ -1618,10 +1661,114 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
  
                          contentLeftMargin: groupHeader.textLeftMargin
                          summaryText: notification ? notification.summary : ""
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml
+@@ -0,0 +1,100 @@
++/*
++ * ada-home-sailfish: active alarms on the covers page (below the weather),
++ * with a section header. Hidden while no alarm is enabled. Tap opens the
++ * clock app chosen for the clock on Home (default: Clock).
++ * Same data as the Clock app's cover (Nemo.Alarms).
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import Nemo.Alarms 1.0
++import Nemo.Configuration 1.0
++import org.nemomobile.lipstick 0.1
++import com.jolla.lipstick 0.1
++
++Column {
++    id: root
++
++    readonly property int count: alarmList.count
++
++    width: parent ? parent.width : 0
++    visible: count > 0
++
++    ConfigurationValue {
++        id: clockAppConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/clock_app"
++        defaultValue: ""
++    }
++
++    LauncherItem {
++        id: clockApp
++
++        filePath: clockAppConfig.value || "/usr/share/applications/jolla-clock.desktop"
++    }
++
++    AlarmsModel {
++        id: alarmsModel
++
++        onlyCountdown: false // alarms, not timers
++    }
++
++    EnabledAlarmsProxyModel {
++        id: enabledAlarms
++
++        model: alarmsModel
++    }
++
++    SectionHeader {
++        text: "Alarms"
++    }
++
++    Repeater {
++        id: alarmList
++
++        model: enabledAlarms
++
++        delegate: BackgroundItem {
++            id: alarmItem
++
++            readonly property QtObject alarm: model.alarm
++
++            width: root.width
++            height: Theme.itemSizeSmall
++            onClicked: {
++                if (Desktop.instance && Desktop.instance.switcher) {
++                    Desktop.instance.switcher.activateWindowFor(clockApp)
++                }
++            }
++
++            Label {
++                id: timeLabel
++
++                x: Theme.horizontalPageMargin
++                anchors.verticalCenter: parent.verticalCenter
++                text: {
++                    var d = new Date()
++                    d.setHours(alarmItem.alarm ? alarmItem.alarm.hour : 0)
++                    d.setMinutes(alarmItem.alarm ? alarmItem.alarm.minute : 0)
++                    return Format.formatDate(d, Formatter.TimeValue)
++                }
++                color: alarmItem.highlighted ? Theme.highlightColor : Theme.primaryColor
++                font.pixelSize: Theme.fontSizeLarge
++            }
++
++            Label {
++                anchors {
++                    left: timeLabel.right
++                    leftMargin: Theme.paddingLarge
++                    right: parent.right
++                    rightMargin: Theme.horizontalPageMargin
++                    baseline: timeLabel.baseline
++                }
++                text: alarmItem.alarm && alarmItem.alarm.title.length > 0 ? alarmItem.alarm.title : "Alarm"
++                color: alarmItem.highlighted ? Theme.highlightColor : Theme.secondaryColor
++                truncationMode: TruncationMode.Fade
++            }
++        }
++    }
++}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
-@@ -0,0 +1,50 @@
+@@ -0,0 +1,61 @@
 +/*
 + * ada-home-sailfish: the Events widgets (weather, calendar) above the app covers.
 + * Loads the same widgets as the Events view, from the same registry
@@ -1651,8 +1798,9 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +        model: widgetsModel
 +
 +        delegate: Column {
++            readonly property bool isWeather: model.path.indexOf("/weather/") !== -1
++
 +            width: root.width
-+            visible: widgetLoader.active
 +
 +            // Section header for the calendar (registry path .../eventsview/calendar/...),
 +            // only when the calendar widget has loaded and shows something
@@ -1666,8 +1814,18 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +                id: widgetLoader
 +
 +                width: parent.width
++                visible: active
 +                active: model.enabled
 +                source: model.path
++            }
++
++            // Active alarms right below the weather (also when the weather
++            // widget itself is switched off)
++            Loader {
++                width: parent.width
++                active: isWeather
++                visible: active && item && item.count > 0
++                source: "CoversAlarms.qml"
 +            }
 +        }
 +    }
