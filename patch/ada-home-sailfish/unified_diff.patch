@@ -175,7 +175,27 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml
 --- a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml
-@@ -464,6 +464,11 @@
+@@ -146,7 +146,9 @@
+ 
+         Item {
+             width: topMenu.width
+-            height: topMenu.itemSize
++            // ada-home-sailfish: no lock button row; keep the row only for
++            // the power-off/reboot options (power key long-press)
++            height: shutdownRow.visible ? topMenu.itemSize : 0
+ 
+             states: [
+                 State {
+@@ -245,7 +247,7 @@
+                 y: Math.min(0, -height - topPadding.height + topMenu.offset)
+                 width: topMenu.width
+                 height: topMenu.itemSize
+-                visible: !shutdownButton.visible || powerTransition.running
++                visible: false // ada-home-sailfish: lock with the power key instead
+                 iconSource: "image://theme/graphic-display-blank"
+                 opacity: shutdownButton.opacity
+                 onClicked: Lipstick.compositor.setDisplayOff()
+@@ -464,6 +466,11 @@
                  }
              }
          }
