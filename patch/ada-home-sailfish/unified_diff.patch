@@ -51,7 +51,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,151 @@
 +/*
 + * ada-home-sailfish: notification list inside the Top menu.
 + * Reuses the stock notification components from ../notifications.
@@ -74,8 +74,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +    readonly property bool allowed: Desktop.deviceLockState === DeviceLock.Unlocked
 +    readonly property bool hasNotifications: notificationList.count > 0
 +
++    // The Top menu's settings (gear) menu opens below the header
++    property bool settingsMenuOpen
++    property real settingsMenuHeight
++    signal settingsClicked(Item menuParent)
++    signal settingsPressAndHold(Item menuParent)
++
 +    width: parent ? parent.width : 0
-+    visible: allowed
 +
 +    onMenuExposedChanged: {
 +        if (!menuExposed) {
@@ -107,33 +112,58 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +        id: header
 +
 +        width: parent.width
-+        height: Theme.itemSizeSmall
++        // The context menu anchors to the bottom of its parent item
++        height: headerRow.height + (root.settingsMenuOpen ? root.settingsMenuHeight : 0)
 +
-+        Label {
-+            anchors {
-+                left: parent.left
-+                leftMargin: Theme.horizontalPageMargin
-+                right: clearButton.left
-+                verticalCenter: parent.verticalCenter
++        Item {
++            id: headerRow
++
++            width: parent.width
++            height: Theme.itemSizeSmall
++
++            Label {
++                anchors {
++                    left: parent.left
++                    leftMargin: Theme.horizontalPageMargin
++                    right: clearButton.left
++                    verticalCenter: parent.verticalCenter
++                }
++                visible: root.allowed
++                text: "Notifications"
++                color: Theme.highlightColor
++                font.pixelSize: Theme.fontSizeSmall
++                truncationMode: TruncationMode.Fade
 +            }
-+            text: "Notifications"
-+            color: Theme.highlightColor
-+            font.pixelSize: Theme.fontSizeSmall
-+            truncationMode: TruncationMode.Fade
-+        }
 +
-+        Button {
-+            id: clearButton
++            Button {
++                id: clearButton
 +
-+            anchors {
-+                right: parent.right
-+                rightMargin: Theme.horizontalPageMargin
-+                verticalCenter: parent.verticalCenter
++                anchors {
++                    right: settingsButton.left
++                    rightMargin: Theme.paddingMedium
++                    verticalCenter: parent.verticalCenter
++                }
++                visible: root.allowed && notificationList.hasRemovableNotifications
++                preferredWidth: Theme.buttonWidthExtraSmall
++                text: "Clear all"
++                onClicked: notificationList.removeAll()
 +            }
-+            visible: notificationList.hasRemovableNotifications
-+            preferredWidth: Theme.buttonWidthExtraSmall
-+            text: "Clear all"
-+            onClicked: notificationList.removeAll()
++
++            IconButton {
++                id: settingsButton
++
++                anchors {
++                    right: parent.right
++                    rightMargin: Theme.horizontalPageMargin - Theme.paddingMedium
++                    verticalCenter: parent.verticalCenter
++                }
++                width: Theme.itemSizeSmall
++                height: Theme.itemSizeSmall
++                icon.source: "image://theme/icon-s-setting"
++                highlighted: down || root.settingsMenuOpen
++                onClicked: root.settingsClicked(header)
++                onPressAndHold: root.settingsPressAndHold(header)
++            }
 +        }
 +    }
 +
@@ -141,7 +171,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +        x: Theme.horizontalPageMargin
 +        width: parent.width - 2 * Theme.horizontalPageMargin
 +        height: visible ? implicitHeight + Theme.paddingLarge : 0
-+        visible: !root.hasNotifications
++        visible: root.allowed && !root.hasNotifications
 +        text: "No notifications"
 +        color: Theme.secondaryHighlightColor
 +        font.pixelSize: Theme.fontSizeSmall
@@ -149,7 +179,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +
 +    Item {
 +        width: parent.width
-+        height: notificationList.contentHeight
++        height: visible ? notificationList.contentHeight : 0
++        visible: root.allowed
 +
 +        Notifications.NotificationListView {
 +            id: notificationList
@@ -195,7 +226,93 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml b/usr/share/li
                  iconSource: "image://theme/graphic-display-blank"
                  opacity: shutdownButton.opacity
                  onClicked: Lipstick.compositor.setDisplayOff()
-@@ -464,6 +466,11 @@
+@@ -291,6 +293,9 @@
+                 defaultValue: true
+             }
+             sourceComponent: MouseArea {
++                // ada-home-sailfish: reachable from the settings menu below
++                property alias favoriteSettings: favoriteSettingsLoader
++
+                 width: parent.width
+                 height: shortcutsColumn.height
+                 onClicked: Lipstick.compositor.topMenuLayer.housekeeping = false
+@@ -336,7 +341,10 @@
+ 
+                         clip: settingsButtonItem.y < 0
+                         width: parent.width
+-                        height: settingsButton.height + (!!contextMenu ? contextMenu.height : 0)
++                        // ada-home-sailfish: the gear moved to the notifications header,
++                        // keep this row only for the user selector
++                        visible: !user.alone
++                        height: visible ? settingsButton.height : 0
+ 
+                         function openMenu(menu, item) {
+                             if (!topMenu.contextMenu) {
+@@ -383,6 +391,7 @@
+                             IconButton {
+                                 id: settingsButton
+ 
++                                visible: false // ada-home-sailfish: moved to the notifications header
+                                 icon.source: "image://theme/icon-s-setting"
+                                 highlighted: down || settingsButtonItem.menuOpen
+ 
+@@ -397,53 +406,10 @@
+                                     visible: settingsButton.down
+                                 }
+ 
+-                                onClicked: {
+-                                    if (Lipstick.compositor.topMenuLayer.housekeeping) {
+-                                        Lipstick.compositor.topMenuLayer.housekeeping = false
+-                                    } else {
+-                                        settingsContainer.openMenu(contextMenuComponent, settingsButtonItem)
+-                                    }
+-                                }
+-
+-                                onPressAndHold: settingsContainer.openMenu(contextMenuComponent, settingsButtonItem)
++                                onClicked: topMenu.settingsClicked(settingsButtonItem)
++                                onPressAndHold: topMenu.openSettingsMenu(settingsButtonItem)
+                             }
+ 
+-                            Component {
+-                                id: contextMenuComponent
+-
+-                                ContextMenu {
+-                                    id: menu
+-
+-                                    // Open the menu beneath the flickable, not within it.
+-                                    container: topMenu.parent
+-
+-                                    onClosed: menu.destroy()
+-                                    Component.onCompleted: settingsButtonItem.menuOpen = true
+-                                    Component.onDestruction: settingsButtonItem.menuOpen = false
+-
+-                                    MenuItem {
+-                                        visible: favoriteSettingsLoader.hasContent
+-                                        //% "Organize"
+-                                        text: qsTrId("lipstick_jolla_home-me-topmenu_organize")
+-                                        color: Desktop.deviceLockState === DeviceLock.Unlocked
+-                                               ? _enabledColor : _disabledColor
+-                                        onClicked: {
+-                                            if (Desktop.deviceLockState === DeviceLock.Unlocked) {
+-                                                Lipstick.compositor.topMenuLayer.housekeeping
+-                                                        = !Lipstick.compositor.topMenuLayer.housekeeping
+-                                            } else {
+-                                                housekeepingNotif.publish()
+-                                            }
+-                                        }
+-                                    }
+-
+-                                    MenuItem {
+-                                        //% "Go to Top Menu settings"
+-                                        text: qsTrId("lipstick_jolla_home-me-topmenu_settings")
+-                                        onClicked: favoriteSettingsLoader.showTopMenuSettings()
+-                                    }
+-                                }
+-                            }
+                         }
+ 
+                         states: State {
+@@ -464,6 +430,72 @@
                  }
              }
          }
@@ -203,6 +320,67 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml b/usr/share/li
 +        // ada-home-sailfish: notifications below the shortcuts
 +        TopMenuNotifications {
 +            width: parent.width
++            settingsMenuOpen: topMenu.settingsMenuOpen
++            settingsMenuHeight: topMenu.contextMenu ? topMenu.contextMenu.height : 0
++            onSettingsClicked: topMenu.settingsClicked(menuParent)
++            onSettingsPressAndHold: topMenu.openSettingsMenu(menuParent)
++        }
++    }
++
++    // ada-home-sailfish: the settings (gear) menu, opened from the notifications header
++    property bool settingsMenuOpen
++    readonly property Item _favoriteSettings: shortcutsLoader.item ? shortcutsLoader.item.favoriteSettings : null
++
++    function openSettingsMenu(item) {
++        if (!contextMenu) {
++            contextMenu = settingsMenuComponent.createObject(topMenu)
++        }
++        contextMenu.open(item)
++    }
++
++    function settingsClicked(item) {
++        if (Lipstick.compositor.topMenuLayer.housekeeping) {
++            Lipstick.compositor.topMenuLayer.housekeeping = false
++        } else {
++            openSettingsMenu(item)
++        }
++    }
++
++    Component {
++        id: settingsMenuComponent
++
++        ContextMenu {
++            id: menu
++
++            // Open the menu beneath the flickable, not within it.
++            container: topMenu.parent
++
++            onClosed: menu.destroy()
++            Component.onCompleted: topMenu.settingsMenuOpen = true
++            Component.onDestruction: topMenu.settingsMenuOpen = false
++
++            MenuItem {
++                visible: !!topMenu._favoriteSettings && topMenu._favoriteSettings.hasContent
++                //% "Organize"
++                text: qsTrId("lipstick_jolla_home-me-topmenu_organize")
++                color: Desktop.deviceLockState === DeviceLock.Unlocked
++                       ? _enabledColor : _disabledColor
++                onClicked: {
++                    if (Desktop.deviceLockState === DeviceLock.Unlocked) {
++                        Lipstick.compositor.topMenuLayer.housekeeping
++                                = !Lipstick.compositor.topMenuLayer.housekeeping
++                    } else {
++                        housekeepingNotif.publish()
++                    }
++                }
++            }
++
++            MenuItem {
++                visible: !!topMenu._favoriteSettings
++                //% "Go to Top Menu settings"
++                text: qsTrId("lipstick_jolla_home-me-topmenu_settings")
++                onClicked: topMenu._favoriteSettings.showTopMenuSettings()
++            }
 +        }
      }
  
