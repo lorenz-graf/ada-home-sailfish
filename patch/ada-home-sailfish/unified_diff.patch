@@ -120,11 +120,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,315 @@
+@@ -0,0 +1,419 @@
 +/*
 + * ada-home-sailfish: the Home page. Big clock and date, then up to eight
-+ * favourite apps as plain text. Long-press to choose
-+ * the favourites from all apps; tap the clock to open the Clock app.
++ * favourite apps as plain text.
++ * - Tap the clock / the date: opens the chosen app (default: Clock / Calendar)
++ * - Long-press the clock / the date: choose that app
++ * - Long-press empty space or a favourite: choose the favourites
 + * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
 + */
 +
@@ -142,10 +144,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    property bool active: true
 +
 +    readonly property int maximumFavourites: 8
-+    readonly property string clockApp: "/usr/share/applications/jolla-clock.desktop"
++    readonly property string defaultClockApp: "/usr/share/applications/jolla-clock.desktop"
++    readonly property string defaultDateApp: "/usr/share/applications/jolla-calendar.desktop"
 +    readonly property QtObject launcherModel: Lipstick.compositor.launcherModel
 +
-+    property bool editing
++    // "" = no picker, "favourites" = choose favourites,
++    // "clock" / "date" = choose the app opened by the clock / the date
++    property string pickerMode
++    readonly property bool singlePick: pickerMode === "clock" || pickerMode === "date"
 +    // LauncherItems of the favourites, in the chosen order
 +    property var favouriteItems: []
 +    // All apps for the picker, sorted by name
@@ -182,6 +188,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        return value ? Array.prototype.slice.call(value) : []
 +    }
 +
++    function _targetConfig(mode) {
++        return mode === "clock" ? clockAppConfig : dateAppConfig
++    }
++
++    function _defaultApp(mode) {
++        return mode === "clock" ? defaultClockApp : defaultDateApp
++    }
++
 +    function refresh() {
 +        var items = _launcherItems()
 +        var result = []
@@ -193,7 +207,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +            }
 +        }
 +        favouriteItems = result
-+        if (editing) {
++        if (pickerMode !== "") {
 +            items.sort(function (a, b) { return a.title.localeCompare(b.title) })
 +            allItems = items
 +        }
@@ -214,19 +228,33 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        favouritesConfig.value = paths
 +    }
 +
++    // The app the clock or the date opens: the chosen one if it is still
++    // installed, otherwise the stock app
++    function targetItem(mode) {
++        var items = _launcherItems()
++        var chosen = _targetConfig(mode).value
++        return (chosen && _findItem(items, chosen)) || _findItem(items, _defaultApp(mode))
++    }
++
++    function chooseTarget(path) {
++        _targetConfig(pickerMode).value = path
++        pickerMode = ""
++    }
++
 +    function launch(item) {
 +        if (item && Desktop.instance && Desktop.instance.switcher) {
 +            Desktop.instance.switcher.activateWindowFor(item)
 +        }
 +    }
 +
-+    function startEditing() {
-+        editing = true
++    function openPicker(mode) {
++        pickerMode = mode
 +        refresh()
++        pickerList.positionViewAtBeginning()
 +    }
 +
-+    onEditingChanged: if (!editing) allItems = []
-+    onActiveChanged: if (!active) editing = false
++    onPickerModeChanged: if (pickerMode === "") allItems = []
++    onActiveChanged: if (!active) pickerMode = ""
 +    onLauncherModelChanged: refresh()
 +    Component.onCompleted: refresh()
 +
@@ -236,6 +264,20 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        key: "/desktop/lipstick-jolla-home/ada_home/favourites"
 +        defaultValue: []
 +        onValueChanged: root.refresh()
++    }
++
++    ConfigurationValue {
++        id: clockAppConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/clock_app"
++        defaultValue: ""
++    }
++
++    ConfigurationValue {
++        id: dateAppConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/date_app"
++        defaultValue: ""
 +    }
 +
 +    Connections {
@@ -251,39 +293,51 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        id: homeArea
 +
 +        anchors.fill: parent
-+        visible: !root.editing
-+        onPressAndHold: root.startEditing()
++        visible: root.pickerMode === ""
++        onPressAndHold: root.openPicker("favourites")
 +
 +        BackgroundItem {
 +            id: clockButton
 +
 +            x: Theme.horizontalPageMargin - Theme.paddingMedium
 +            y: root.statusBarHeight + Theme.paddingLarge
-+            width: clockColumn.width + 2 * Theme.paddingMedium
-+            height: clockColumn.height + 2 * Theme.paddingSmall
++            width: clock.width + 2 * Theme.paddingMedium
++            height: clock.height
 +            highlightedColor: "transparent"
-+            onClicked: root.launch(root._findItem(root._launcherItems(), root.clockApp))
-+            onPressAndHold: root.startEditing()
++            onClicked: root.launch(root.targetItem("clock"))
++            onPressAndHold: root.openPicker("clock")
 +
-+            Column {
-+                id: clockColumn
++            ClockItem {
++                id: clock
++
++                x: Theme.paddingMedium
++                updatesEnabled: root.active
++                color: clockButton.highlighted ? Theme.highlightColor : Theme.primaryColor
++                font.pixelSize: Theme.fontSizeHuge * 1.5
++            }
++        }
++
++        BackgroundItem {
++            id: dateButton
++
++            anchors {
++                left: clockButton.left
++                top: clockButton.bottom
++            }
++            width: dateLabel.width + 2 * Theme.paddingMedium
++            height: dateLabel.height + 2 * Theme.paddingSmall
++            highlightedColor: "transparent"
++            onClicked: root.launch(root.targetItem("date"))
++            onPressAndHold: root.openPicker("date")
++
++            Label {
++                id: dateLabel
 +
 +                x: Theme.paddingMedium
 +                y: Theme.paddingSmall
-+
-+                ClockItem {
-+                    id: clock
-+
-+                    updatesEnabled: root.active
-+                    color: clockButton.highlighted ? Theme.highlightColor : Theme.primaryColor
-+                    font.pixelSize: Theme.fontSizeHuge * 1.5
-+                }
-+
-+                Label {
-+                    text: Qt.formatDate(clock.time, "dddd, d MMMM")
-+                    color: clockButton.highlighted ? Theme.highlightColor : Theme.secondaryColor
-+                    font.pixelSize: Theme.fontSizeMedium
-+                }
++                text: Qt.formatDate(clock.time, "dddd, d MMMM")
++                color: dateButton.highlighted ? Theme.highlightColor : Theme.secondaryColor
++                font.pixelSize: Theme.fontSizeMedium
 +            }
 +        }
 +
@@ -294,7 +348,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                left: parent.left
 +                right: parent.right
 +                verticalCenter: parent.verticalCenter
-+                verticalCenterOffset: (clockButton.y + clockButton.height) / 2
++                verticalCenterOffset: (dateButton.y + dateButton.height) / 2
 +            }
 +
 +            Repeater {
@@ -307,7 +361,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                    height: Theme.itemSizeMedium
 +                    highlightedColor: "transparent"
 +                    onClicked: root.launch(modelData)
-+                    onPressAndHold: root.startEditing()
++                    onPressAndHold: root.openPicker("favourites")
 +
 +                    Label {
 +                        x: Theme.horizontalPageMargin
@@ -333,10 +387,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        }
 +    }
 +
-+    // Picker: all apps, tap to add or remove
++    // Picker: all apps. Favourites: tap to add or remove.
++    // Clock / date: tap one app (or "Default") to choose it.
 +    Item {
 +        anchors.fill: parent
-+        visible: root.editing
++        visible: root.pickerMode !== ""
 +
 +        Item {
 +            id: pickerHeader
@@ -352,7 +407,9 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                    right: doneButton.left
 +                    verticalCenter: parent.verticalCenter
 +                }
-+                text: "Favourites " + root.favouriteItems.length + "/" + root.maximumFavourites
++                text: root.pickerMode === "clock" ? "App for the clock"
++                    : root.pickerMode === "date" ? "App for the date"
++                    : "Favourites " + root.favouriteItems.length + "/" + root.maximumFavourites
 +                color: Theme.highlightColor
 +                font.pixelSize: Theme.fontSizeLarge
 +                truncationMode: TruncationMode.Fade
@@ -367,8 +424,9 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                    verticalCenter: parent.verticalCenter
 +                }
 +                preferredWidth: Theme.buttonWidthExtraSmall
-+                text: "Done"
-+                onClicked: root.editing = false
++                // Cancelling a clock/date choice keeps the previous app
++                text: root.singlePick ? "Cancel" : "Done"
++                onClicked: root.pickerMode = ""
 +            }
 +        }
 +
@@ -384,15 +442,61 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +            clip: true
 +            model: root.allItems
 +
++            header: BackgroundItem {
++                id: defaultItem
++
++                readonly property bool selected: root.singlePick
++                                                 && !root._targetConfig(root.pickerMode).value
++
++                width: pickerList.width
++                height: root.singlePick ? Theme.itemSizeMedium : 0
++                visible: root.singlePick
++                onClicked: root.chooseTarget("")
++
++                Label {
++                    anchors {
++                        left: parent.left
++                        leftMargin: Theme.horizontalPageMargin + Theme.iconSizeMedium + Theme.paddingLarge
++                        right: defaultCheck.left
++                        rightMargin: Theme.paddingMedium
++                        verticalCenter: parent.verticalCenter
++                    }
++                    text: root.pickerMode === "clock" ? "Default (Clock)" : "Default (Calendar)"
++                    color: defaultItem.selected || defaultItem.highlighted ? Theme.highlightColor : Theme.primaryColor
++                    truncationMode: TruncationMode.Fade
++                }
++
++                Icon {
++                    id: defaultCheck
++
++                    anchors {
++                        right: parent.right
++                        rightMargin: Theme.horizontalPageMargin
++                        verticalCenter: parent.verticalCenter
++                    }
++                    visible: defaultItem.selected
++                    source: "image://theme/icon-m-acknowledge"
++                    color: Theme.highlightColor
++                }
++            }
++
 +            delegate: BackgroundItem {
 +                id: pickerItem
 +
-+                readonly property bool selected: (root.favouriteItems, root.isFavourite(modelData.filePath))
++                readonly property bool selected: root.singlePick
++                                                 ? root._targetConfig(root.pickerMode).value === modelData.filePath
++                                                 : (root.favouriteItems, root.isFavourite(modelData.filePath))
 +
 +                width: pickerList.width
 +                height: Theme.itemSizeMedium
-+                enabled: selected || root.favouriteItems.length < root.maximumFavourites
-+                onClicked: root.toggleFavourite(modelData.filePath)
++                enabled: root.singlePick || selected || root.favouriteItems.length < root.maximumFavourites
++                onClicked: {
++                    if (root.singlePick) {
++                        root.chooseTarget(modelData.filePath)
++                    } else {
++                        root.toggleFavourite(modelData.filePath)
++                    }
++                }
 +
 +                LauncherIcon {
 +                    id: icon
