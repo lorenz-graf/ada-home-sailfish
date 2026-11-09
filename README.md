@@ -15,10 +15,21 @@ Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 - **Clock and date:** tap opens the clock or calendar app. Long-press chooses which app that is ("Default" = the stock Clock / Calendar).
 - **Apps:** 0–8 slots (default 4) shown as text. An empty slot shows a grey "App". Long-press a slot to choose its app from a searchable list (ignores case, accents and separators; Enter picks the first match). To rename a slot, long-press it, type the new name into the search field and tap **Rename**.
 - **Long-press on empty space:** Settings. While Settings is open, the clock and date stay visible so changes show right away.
-- **Swipe left or right** (not from the screen edge): opens a configurable app (defaults: right to left = Calculator, left to right = Contacts; "Off" switches to the second page). Swipes from the edge still switch pages as before.
+- **Swipe left or right** (not from the screen edge, also when it starts on an app or the clock): opens a configurable app (defaults: right to left = Calculator, left to right = Contacts; "Off" switches to the second page). Swipes from the edge still switch pages as before.
 - **Double tap on empty space:** turns the display off and locks, like the stock Top menu lock button (off by default).
 - **Loading screen:** while an app starts, its icon, name and a spinner show until the app's window appears (tap to hide; hides by itself after 10 s).
 - On Home the status bar uses the Home text colour and hides its clock (Home has its own). Optionally it stays hidden until you touch Home. Elsewhere it stays as it is.
+
+## Second page
+
+Swipe in from the left or right screen edge. Each section has a section header and only shows when it has something to show:
+
+- **Weather** (the header is optional: Settings → Layout → Weather header)
+- **Alarms:** all alarms that are switched on, with time and name. Tap opens the clock app chosen for the Home clock. This list also shows when the weather widget is off
+- **Calendar**
+- **Running apps:** the covers, small and 3 per row by default (Settings → Layout → Always small covers; off = stock behaviour). Long-press a cover for **Close all**, as in stock Sailfish
+
+The background is dimmed on this page, not on Home.
 
 ## Settings
 
@@ -83,10 +94,10 @@ Two patches can change the same file as long as they change different lines. Ada
 Patchmanager serves patched copies of the homescreen's QML (`/usr/share/lipstick-jolla-home-qt5/`) to lipstick; nothing on disk is changed. The patch:
 
 - changes where navigation lands (`compositor.qml`, `layers/HomeLayer.qml`): the Events page becomes Home, the covers become the second page, and the wallpaper dimming follows the covers page
-- adds the Home page (`eventsview/HomeFavourites.qml`, `HomeAppPicker.qml`, `HomeSettings*.qml`, `HomeTextShadow.qml`) to the Events window (`eventsview/EventsWindow.qml`); the stock Events list stays for the lock screen
+- adds the Home page (`eventsview/HomeFavourites.qml`, `HomeAppPicker.qml`, `HomeSettings*.qml`, `HomeTextShadow.qml`) to the Events window (`eventsview/EventsWindow.qml`); the stock Events list stays for the lock screen. The loading screen is part of the Home page and follows the covers page's own launch tracking
 - adds weather, active alarms and calendar above the covers (`switcher/CoversWidgets.qml`, `switcher/CoversAlarms.qml`, `switcher/Switcher.qml`)
 - adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`)
-- leaves the status bar files alone: the Home page sets the status bar's colour and hides its clock at runtime, only while Home is shown, so status bar patches still apply. If a patch rebuilds the status bar so the clock can't be found, the clock just stays visible
+- leaves the status bar files alone: the Home page sets the status bar's colour, hides its clock (and optionally the whole bar) while Home is shown, and optionally hides the alarm bell, all at runtime, so status bar patches still apply. If a patch rebuilds the status bar so the clock or the bell can't be found, they just stay visible. The lock screen has its own status bar and isn't changed
 
 ## Build
 
@@ -113,6 +124,12 @@ After a Sailfish OS update, fetch `stock/` again from the phone, rebuild and che
 
 ```
 devel-su sh -c 'sh ~defaultuser/ada-home-dev/ada-home-dev setup && /usr/libexec/ada-home-dev/ada-home-dev enable 4'
+```
+
+After that, once per session (the window expires by itself; `deploy.sh` checks it before changing anything and says so when it has run out):
+
+```
+devel-su /usr/libexec/ada-home-dev/ada-home-dev enable 4
 ```
 
 `enable <hours>` (1–24) writes a polkit rule with an expiry time that lets `defaultuser`, also over SSH, start exactly two units: one copies the staged patch from `~/ada-home-sailfish/` into Patchmanager (it refuses any patch that touches files outside `/usr/share/lipstick-jolla-home-qt5/` or uses `..` in a path), the other records the journal to `/run/ada-home-dev/journal.txt`. `disable` removes the rule early, `uninstall` removes the helper completely.
