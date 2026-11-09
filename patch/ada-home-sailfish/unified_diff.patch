@@ -120,7 +120,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml
-@@ -0,0 +1,251 @@
+@@ -0,0 +1,262 @@
 +/*
 + * ada-home-sailfish: app picker.
 + * Search field on top (ignores case, accents and separators), Enter picks
@@ -195,6 +195,17 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 +            }
 +        }
 +        return result
++    }
++
++    // Readable on any wallpaper: the ambience's dimmer colour behind the content
++    Rectangle {
++        anchors {
++            top: header.top
++            bottom: parent.bottom
++            left: parent.left
++            right: parent.right
++        }
++        color: Theme.rgba(Theme.highlightDimmerColor, 0.8)
 +    }
 +
 +    Item {
@@ -375,7 +386,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,396 @@
+@@ -0,0 +1,436 @@
 +/*
 + * ada-home-sailfish: the Home page of the text homescreen
 + * (clock, date, app slots and settings).
@@ -421,6 +432,22 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +
 +    readonly property int slotCount: Math.max(0, Math.min(maximumSlots, slotCountConfig.value))
 +    readonly property real textScale: Math.max(0.5, Math.min(1.5, textScaleConfig.value))
++    // Margins from Settings (steps of Theme.paddingLarge, added to the default layout)
++    readonly property real sideMargin: Theme.horizontalPageMargin + marginSideConfig.value * Theme.paddingLarge
++    readonly property real topMargin: Theme.paddingLarge + marginTopConfig.value * Theme.paddingLarge
++    readonly property real bottomMargin: marginBottomConfig.value * Theme.paddingLarge
++    // Text colour (Settings): 0 ambience text colour, 1 ambience highlight
++    // colour, 2 white, 3 black. The ambience colours contrast with the ambience.
++    readonly property int colorChoice: textColorConfig.value
++    readonly property color textColor: colorChoice === 1 ? Theme.highlightColor
++                                     : colorChoice === 2 ? "white"
++                                     : colorChoice === 3 ? "black"
++                                     : Theme.primaryColor
++    readonly property color dimTextColor: colorChoice === 0 ? Theme.secondaryColor
++                                        : Qt.rgba(textColor.r, textColor.g, textColor.b, 0.75)
++    // Pressed items: the highlight colour, unless the text already uses it
++    readonly property color pressedColor: colorChoice === 1 ? Theme.primaryColor : Theme.highlightColor
++    readonly property int shadowLevel: Math.max(0, Math.min(3, shadowLevelConfig.value))
 +    readonly property int textAlignment: alignmentConfig.value === 1 ? Text.AlignHCenter
 +                                       : alignmentConfig.value === 2 ? Text.AlignRight
 +                                       : Text.AlignLeft
@@ -567,6 +594,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: textScaleConfig; key: root._path + "text_scale"; defaultValue: 1.0 }
 +    ConfigurationValue { id: boldConfig; key: root._path + "bold"; defaultValue: false }
 +    ConfigurationValue { id: autoKeyboardConfig; key: root._path + "auto_keyboard"; defaultValue: true }
++    ConfigurationValue { id: shadowLevelConfig; key: root._path + "shadow_level"; defaultValue: 1 }
++    ConfigurationValue { id: textColorConfig; key: root._path + "text_color"; defaultValue: 0 }
++    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
++    ConfigurationValue { id: marginTopConfig; key: root._path + "margin_top"; defaultValue: 0 }
++    ConfigurationValue { id: marginBottomConfig; key: root._path + "margin_bottom"; defaultValue: 0 }
 +    ConfigurationValue { id: settingsOpenedConfig; key: root._path + "settings_opened"; defaultValue: false }
 +    ConfigurationValue { id: migratedConfig; key: root._path + "migrated_favourites"; defaultValue: false }
 +    ConfigurationValue { id: favouritesConfig; key: root._path + "favourites"; defaultValue: [] }
@@ -591,9 +623,9 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        if (textAlignment === Text.AlignHCenter) {
 +            return (width - w) / 2
 +        } else if (textAlignment === Text.AlignRight) {
-+            return width - w - Theme.horizontalPageMargin + Theme.paddingMedium
++            return width - w - sideMargin + Theme.paddingMedium
 +        }
-+        return Theme.horizontalPageMargin - Theme.paddingMedium
++        return sideMargin - Theme.paddingMedium
 +    }
 +
 +    // Home view
@@ -601,15 +633,19 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        id: homeArea
 +
 +        anchors.fill: parent
-+        visible: root.view === ""
++        // In Settings the clock and date stay visible as a live preview
++        visible: root.view === "" || root.view === "settings"
++        enabled: root.view === ""
 +        onPressAndHold: root.openSettings()
 +
 +        Column {
 +            id: clockColumn
 +
-+            y: root.statusBarHeight + Theme.paddingLarge
++            y: root.statusBarHeight + root.topMargin
 +            width: parent.width
 +            visible: dateTimeConfig.value !== 0
++            layer.enabled: root.shadowLevel > 0
++            layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: root.textColor }
 +
 +            BackgroundItem {
 +                id: clockButton
@@ -618,6 +654,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                width: clock.width + 2 * Theme.paddingMedium
 +                height: visible ? clock.height : 0
 +                visible: dateTimeConfig.value === 1
++                enabled: root.view === ""
 +                highlightedColor: "transparent"
 +                onClicked: root.launch(root.targetItem("clock"))
 +                onPressAndHold: root.openPicker("clock")
@@ -627,7 +664,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +
 +                    x: Theme.paddingMedium
 +                    updatesEnabled: root.active
-+                    color: clockButton.highlighted ? Theme.highlightColor : Theme.primaryColor
++                    color: clockButton.highlighted ? root.pressedColor : root.textColor
 +                    font.pixelSize: Theme.fontSizeHuge * 1.5 * root.textScale
 +                    font.bold: boldConfig.value
 +                }
@@ -639,6 +676,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                x: root.alignedX(width)
 +                width: dateLabel.width + 2 * Theme.paddingMedium
 +                height: dateLabel.height + 2 * Theme.paddingSmall
++                enabled: root.view === ""
 +                highlightedColor: "transparent"
 +                onClicked: root.launch(root.targetItem("date"))
 +                onPressAndHold: root.openPicker("date")
@@ -649,7 +687,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                    x: Theme.paddingMedium
 +                    y: Theme.paddingSmall
 +                    text: Qt.formatDate(clock.time, "ddd, d MMM")
-+                    color: dateButton.highlighted ? Theme.highlightColor : Theme.secondaryColor
++                    color: dateButton.highlighted ? root.pressedColor : root.dimTextColor
 +                    font.pixelSize: Theme.fontSizeMedium * root.textScale
 +                    font.bold: boldConfig.value
 +                }
@@ -659,12 +697,19 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        Column {
 +            id: slotsColumn
 +
-+            readonly property real contentTop: clockColumn.visible ? clockColumn.y + clockColumn.height : root.statusBarHeight
++            readonly property real contentTop: clockColumn.visible ? clockColumn.y + clockColumn.height
++                                                                   : root.statusBarHeight + root.topMargin
++            readonly property real contentBottom: parent.height - root.bottomMargin
 +
 +            width: parent.width
++            visible: root.view === ""
++            layer.enabled: root.shadowLevel > 0
++            layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: root.textColor }
++            // Bottom: aligned to the bottom margin. Otherwise centred between
++            // the clock and the bottom margin, never above the clock
 +            y: bottomConfig.value
-+               ? parent.height - height - Theme.itemSizeLarge
-+               : Math.max(contentTop + Theme.paddingLarge, contentTop + (parent.height - contentTop - height) / 2)
++               ? Math.max(contentTop, contentBottom - height - Theme.itemSizeLarge)
++               : Math.max(contentTop + Theme.paddingLarge, contentTop + (contentBottom - contentTop - height) / 2)
 +
 +            Repeater {
 +                model: root.slotCount
@@ -691,14 +736,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                    Label {
 +                        id: slotText
 +
-+                        x: Theme.horizontalPageMargin
-+                        width: parent.width - 2 * Theme.horizontalPageMargin
++                        x: root.sideMargin
++                        width: parent.width - 2 * root.sideMargin
 +                        anchors.verticalCenter: parent.verticalCenter
 +                        horizontalAlignment: root.textAlignment
 +                        text: slot.label.length > 0 ? slot.label : "App"
-+                        color: slot.highlighted ? Theme.highlightColor
-+                             : slot.label.length > 0 ? Theme.primaryColor
-+                             : Theme.rgba(Theme.secondaryColor, Theme.opacityLow)
++                        color: slot.highlighted ? root.pressedColor
++                             : slot.label.length > 0 ? root.textColor
++                             : Qt.rgba(root.dimTextColor.r, root.dimTextColor.g, root.dimTextColor.b, Theme.opacityLow)
 +                        font.pixelSize: Theme.fontSizeLarge * root.textScale
 +                        font.bold: boldConfig.value
 +                        truncationMode: TruncationMode.Fade
@@ -709,7 +754,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +
 +        // First-run tip, until Settings has been opened once
 +        Label {
-+            visible: !settingsOpenedConfig.value
++            visible: !settingsOpenedConfig.value && root.view === ""
 +            anchors {
 +                bottom: parent.bottom
 +                bottomMargin: Theme.paddingLarge * 2
@@ -719,7 +764,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +            horizontalAlignment: Text.AlignHCenter
 +            wrapMode: Text.Wrap
 +            text: "Long press anywhere for settings"
-+            color: Theme.secondaryColor
++            color: root.dimTextColor
 +            font.pixelSize: Theme.fontSizeSmall
 +        }
 +    }
@@ -742,6 +787,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                      ? (slotAppsConfig.value, root._array(slotAppsConfig.value)[root.pickerSlot] || "")
 +                      : (root._targetConfig(root.pickerTarget).value || "")
 +        // Rename only for a slot that already has an app
++        layer.enabled: visible && root.shadowLevel > 0
++        layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: Theme.primaryColor }
 +        renameAllowed: root.pickerTarget === "slot" && root.pickerSlot >= 0
 +                       && (slotAppsConfig.value, root.slotItem(root.pickerSlot) !== null)
 +
@@ -768,14 +815,18 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    HomeSettings {
 +        anchors.fill: parent
 +        visible: root.view === "settings"
-+        topMargin: root.statusBarHeight
++        // Below the clock and date, which stay visible as a live preview
++        topMargin: clockColumn.visible ? clockColumn.y + clockColumn.height + Theme.paddingSmall
++                                       : root.statusBarHeight
++        layer.enabled: visible && root.shadowLevel > 0
++        layer.effect: HomeTextShadow { level: root.shadowLevel; textColor: Theme.primaryColor }
 +        onDone: root.closeView()
 +    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,217 @@
+@@ -0,0 +1,244 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space),
 + * with the options that make sense on Sailfish.
@@ -804,6 +855,22 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: textScale; key: settings._path + "text_scale"; defaultValue: 1.0 }
 +    ConfigurationValue { id: bold; key: settings._path + "bold"; defaultValue: false }
 +    ConfigurationValue { id: autoKeyboard; key: settings._path + "auto_keyboard"; defaultValue: true }
++    ConfigurationValue { id: shadowLevel; key: settings._path + "shadow_level"; defaultValue: 1 }
++    ConfigurationValue { id: textColor; key: settings._path + "text_color"; defaultValue: 0 }
++    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
++    ConfigurationValue { id: marginTop; key: settings._path + "margin_top"; defaultValue: 0 }
++    ConfigurationValue { id: marginBottom; key: settings._path + "margin_bottom"; defaultValue: 0 }
++
++    // Readable on any wallpaper: the ambience's dimmer colour behind the content
++    Rectangle {
++        anchors {
++            top: header.top
++            bottom: parent.bottom
++            left: parent.left
++            right: parent.right
++        }
++        color: Theme.rgba(Theme.highlightDimmerColor, 0.8)
++    }
 +
 +    Item {
 +        id: header
@@ -852,40 +919,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +
 +            SectionHeader { text: "Home screen" }
 +
-+            // Number stepper: label, minus, value, plus
-+            Item {
-+                width: parent.width
-+                height: Theme.itemSizeSmall
-+
-+                Label {
-+                    x: Theme.horizontalPageMargin
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    text: "Apps on home screen"
-+                }
-+                Row {
-+                    anchors {
-+                        right: parent.right
-+                        rightMargin: Theme.horizontalPageMargin - Theme.paddingMedium
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    IconButton {
-+                        icon.source: "image://theme/icon-m-remove"
-+                        enabled: slotCount.value > 0
-+                        onClicked: slotCount.value = Math.max(0, slotCount.value - 1)
-+                    }
-+                    Label {
-+                        width: Theme.itemSizeSmall
-+                        anchors.verticalCenter: parent.verticalCenter
-+                        horizontalAlignment: Text.AlignHCenter
-+                        text: slotCount.value
-+                        color: Theme.highlightColor
-+                    }
-+                    IconButton {
-+                        icon.source: "image://theme/icon-m-add"
-+                        enabled: slotCount.value < 8
-+                        onClicked: slotCount.value = Math.min(8, slotCount.value + 1)
-+                    }
-+                }
++            HomeSettingsStepper {
++                label: "Apps on home screen"
++                value: slotCount.value
++                maximum: 8
++                onStepped: slotCount.value = newValue
 +            }
 +
 +            // Tap to cycle through the choices
@@ -937,41 +975,40 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                onClicked: bottom.value = !bottom.value
 +            }
 +
++            SectionHeader { text: "Layout" }
++
++            // Margins in steps of Theme.paddingLarge, added to the default layout
++            HomeSettingsStepper {
++                label: "Side margin"
++                value: marginSide.value
++                maximum: 10
++                onStepped: marginSide.value = newValue
++            }
++
++            HomeSettingsStepper {
++                label: "Top margin"
++                value: marginTop.value
++                maximum: 20
++                onStepped: marginTop.value = newValue
++            }
++
++            HomeSettingsStepper {
++                label: "Bottom margin"
++                value: marginBottom.value
++                maximum: 20
++                onStepped: marginBottom.value = newValue
++            }
++
 +            SectionHeader { text: "Appearance" }
 +
-+            Item {
-+                width: parent.width
-+                height: Theme.itemSizeSmall
-+
-+                Label {
-+                    x: Theme.horizontalPageMargin
-+                    anchors.verticalCenter: parent.verticalCenter
-+                    text: "Text size"
-+                }
-+                Row {
-+                    anchors {
-+                        right: parent.right
-+                        rightMargin: Theme.horizontalPageMargin - Theme.paddingMedium
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    IconButton {
-+                        icon.source: "image://theme/icon-m-remove"
-+                        enabled: textScale.value > 0.55
-+                        onClicked: textScale.value = Math.max(0.5, Math.round((textScale.value - 0.1) * 10) / 10)
-+                    }
-+                    Label {
-+                        width: Theme.itemSizeSmall
-+                        anchors.verticalCenter: parent.verticalCenter
-+                        horizontalAlignment: Text.AlignHCenter
-+                        text: Number(textScale.value).toFixed(1)
-+                        color: Theme.highlightColor
-+                    }
-+                    IconButton {
-+                        icon.source: "image://theme/icon-m-add"
-+                        enabled: textScale.value < 1.45
-+                        onClicked: textScale.value = Math.min(1.5, Math.round((textScale.value + 0.1) * 10) / 10)
-+                    }
-+                }
++            HomeSettingsStepper {
++                label: "Text size"
++                value: textScale.value
++                minimum: 0.5
++                maximum: 1.5
++                step: 0.1
++                decimals: 1
++                onStepped: textScale.value = newValue
 +            }
 +
 +            TextSwitch {
@@ -979,6 +1016,47 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                automaticCheck: false
 +                checked: bold.value
 +                onClicked: bold.value = !bold.value
++            }
++
++            BackgroundItem {
++                width: parent.width
++                onClicked: shadowLevel.value = (shadowLevel.value + 1) % 4
++
++                Label {
++                    x: Theme.horizontalPageMargin
++                    anchors.verticalCenter: parent.verticalCenter
++                    text: "Text shadow"
++                }
++                Label {
++                    anchors {
++                        right: parent.right
++                        rightMargin: Theme.horizontalPageMargin
++                        verticalCenter: parent.verticalCenter
++                    }
++                    text: ["Off", "Small", "Medium", "Large"][Math.max(0, Math.min(3, shadowLevel.value))]
++                    color: Theme.highlightColor
++                }
++            }
++
++            BackgroundItem {
++                width: parent.width
++                onClicked: textColor.value = (textColor.value + 1) % 4
++
++                Label {
++                    x: Theme.horizontalPageMargin
++                    anchors.verticalCenter: parent.verticalCenter
++                    text: "Text color"
++                }
++                Label {
++                    anchors {
++                        right: parent.right
++                        rightMargin: Theme.horizontalPageMargin
++                        verticalCenter: parent.verticalCenter
++                    }
++                    // Ambience colours are chosen by the ambience to contrast with it
++                    text: ["Ambience", "Ambience highlight", "White", "Black"][Math.max(0, Math.min(3, textColor.value))]
++                    color: Theme.highlightColor
++                }
 +            }
 +
 +            TextSwitch {
@@ -992,6 +1070,109 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +
 +        VerticalScrollDecorator {}
 +    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsStepper.qml
+@@ -0,0 +1,68 @@
++/*
++ * ada-home-sailfish: settings row "label  [-] value [+]".
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++
++Item {
++    id: stepper
++
++    property string label
++    property real value
++    property real minimum: 0
++    property real maximum: 10
++    property real step: 1
++    property int decimals: 0
++
++    signal stepped(real newValue)
++
++    function _round(v) {
++        var f = Math.pow(10, decimals)
++        return Math.round(v * f) / f
++    }
++
++    width: parent ? parent.width : 0
++    height: Theme.itemSizeSmall
++
++    Label {
++        anchors {
++            left: parent.left
++            leftMargin: Theme.horizontalPageMargin
++            right: buttons.left
++            rightMargin: Theme.paddingMedium
++            verticalCenter: parent.verticalCenter
++        }
++        text: stepper.label
++        truncationMode: TruncationMode.Fade
++    }
++
++    Row {
++        id: buttons
++
++        anchors {
++            right: parent.right
++            rightMargin: Theme.horizontalPageMargin - Theme.paddingMedium
++            verticalCenter: parent.verticalCenter
++        }
++
++        IconButton {
++            icon.source: "image://theme/icon-m-remove"
++            enabled: stepper.value > stepper.minimum + stepper.step / 2
++            onClicked: stepper.stepped(Math.max(stepper.minimum, stepper._round(stepper.value - stepper.step)))
++        }
++        Label {
++            width: Theme.itemSizeSmall
++            anchors.verticalCenter: parent.verticalCenter
++            horizontalAlignment: Text.AlignHCenter
++            text: Number(stepper.value).toFixed(stepper.decimals)
++            color: Theme.highlightColor
++        }
++        IconButton {
++            icon.source: "image://theme/icon-m-add"
++            enabled: stepper.value < stepper.maximum - stepper.step / 2
++            onClicked: stepper.stepped(Math.min(stepper.maximum, stepper._round(stepper.value + stepper.step)))
++        }
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeTextShadow.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeTextShadow.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeTextShadow.qml
+@@ -0,0 +1,27 @@
++/*
++ * ada-home-sailfish: soft text shadow used as a layer effect.
++ * level: 0 off, 1 small, 2 medium, 3 large.
++ * The shadow contrasts with the text: dark shadow behind light text,
++ * light glow behind dark text.
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import QtGraphicalEffects 1.0
++
++DropShadow {
++    property int level: 1
++    property color textColor: Theme.primaryColor
++
++    readonly property bool _lightText: (0.299 * textColor.r + 0.587 * textColor.g + 0.114 * textColor.b) > 0.5
++    // Blur radius in pixels: about 4 / 9 / 15 px on this screen (keeps the shader cheap)
++    readonly property real _size: Math.round((level <= 1 ? 3 : level === 2 ? 6 : 10) * Theme.pixelRatio)
++
++    transparentBorder: true
++    horizontalOffset: 0
++    verticalOffset: Math.max(1, Math.round(_size / 3))
++    radius: _size
++    samples: 2 * Math.round(_size) + 1
++    color: _lightText ? Qt.rgba(0, 0, 0, 0.45 + 0.1 * level) : Qt.rgba(1, 1, 1, 0.45 + 0.1 * level)
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
 --- a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml

@@ -1,0 +1,9 @@
+[Unit]
+Description=ada-home-sailfish development: record the journal while testing
+
+[Service]
+Type=simple
+UMask=0022
+ExecStartPre=/bin/mkdir -p -m 755 /run/ada-home-dev
+# Readable by defaultuser while it runs: the whole journal, not only lipstick
+ExecStart=/bin/sh -c 'exec /usr/bin/journalctl -f --no-pager -o short-precise > /run/ada-home-dev/journal.txt'

@@ -1,0 +1,6 @@
+[Unit]
+Description=ada-home-sailfish development: install the staged patch
+
+[Service]
+Type=oneshot
+ExecStart=/usr/libexec/ada-home-dev/ada-home-dev install

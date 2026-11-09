@@ -1,0 +1,153 @@
+#!/bin/sh
+# ada-home-dev: time-limited root helper for developing the ada-home-sailfish
+# Patchmanager patch, so the patch can be installed over SSH without the
+# devel-su password.
+#
+#   setup            (root) install this helper and its two systemd units
+#   enable [hours]   (root) allow defaultuser to start the units for 1-24 h
+#                    (default 4) via a polkit rule with an expiry time
+#   disable          (root) remove the polkit rule now, stop the log
+#   uninstall        (root) remove everything this helper installed
+#   install          (run by ada-home-dev-install.service) copy the staged
+#                    patch from ~defaultuser/ada-home-sailfish/ into
+#                    Patchmanager's patch directory
+#
+# The install step only accepts a patch whose files all lie in
+# /usr/share/lipstick-jolla-home-qt5/ (QML of lipstick, which runs as
+# defaultuser anyway), so the helper can't be used to change files that root
+# processes read. BusyBox sh compatible.
+set -eu
+
+NAME=ada-home-sailfish
+SRC=/home/defaultuser/$NAME
+DEST=/usr/share/patchmanager/patches/$NAME
+PREFIX=usr/share/lipstick-jolla-home-qt5/
+LIBEXEC=/usr/libexec/ada-home-dev
+UNITDIR=/etc/systemd/system
+UNITS="ada-home-dev-install.service ada-home-dev-log.service"
+RULE=/etc/polkit-1/rules.d/49-ada-home-dev.rules
+RUNDIR=/run/ada-home-dev
+
+die() {
+    echo "ada-home-dev: $*" >&2
+    if [ -d "$RUNDIR" ]; then
+        echo "FAILED: $*" > "$RUNDIR/install-status"
+    fi
+    exit 1
+}
+
+[ "$(id -u)" = 0 ] || die "must run as root"
+
+case "${1:-}" in
+setup)
+    here=$(cd "$(dirname "$0")" && pwd)
+    mkdir -p "$LIBEXEC"
+    cp "$here/ada-home-dev" "$LIBEXEC/ada-home-dev"
+    chown root:root "$LIBEXEC/ada-home-dev"
+    chmod 755 "$LIBEXEC/ada-home-dev"
+    for u in $UNITS; do
+        cp "$here/$u" "$UNITDIR/$u"
+        chown root:root "$UNITDIR/$u"
+        chmod 644 "$UNITDIR/$u"
+    done
+    systemctl daemon-reload
+    echo "ada-home-dev: installed. Allow it with: $LIBEXEC/ada-home-dev enable 4"
+    ;;
+
+enable)
+    hours=${2:-4}
+    case $hours in
+        ''|*[!0-9]*) die "hours must be a whole number" ;;
+    esac
+    [ "$hours" -ge 1 ] && [ "$hours" -le 24 ] || die "hours must be 1-24"
+    now=$(date +%s)
+    expiry=$(( (now + hours * 3600) * 1000 ))
+    tmp="$RULE.tmp"
+    umask 022
+    cat > "$tmp" <<EOF
+/*
+ * ada-home-dev: written by "ada-home-dev enable", valid until
+ * $(date -d "@$(( expiry / 1000 ))") (ms since epoch below).
+ * Lets defaultuser (also over SSH) start the patch install unit and
+ * start/stop the journal recording unit. Nothing else.
+ * Remove with: $LIBEXEC/ada-home-dev disable
+ */
+polkit.addRule(function(action, subject) {
+    if (action.id !== "org.freedesktop.systemd1.manage-units" || subject.user !== "defaultuser") {
+        return polkit.Result.NOT_HANDLED;
+    }
+    if (Date.now() > $expiry) {
+        return polkit.Result.NOT_HANDLED;
+    }
+    var unit = action.lookup("unit");
+    var verb = action.lookup("verb");
+    if (unit === "ada-home-dev-install.service" && verb === "start") {
+        return polkit.Result.YES;
+    }
+    if (unit === "ada-home-dev-log.service" && (verb === "start" || verb === "stop" || verb === "restart")) {
+        return polkit.Result.YES;
+    }
+    return polkit.Result.NOT_HANDLED;
+});
+EOF
+    chown root:root "$tmp"
+    chmod 644 "$tmp"
+    mv "$tmp" "$RULE"
+    mkdir -p -m 755 "$RUNDIR"
+    echo "ada-home-dev: enabled until $(date -d "@$(( expiry / 1000 ))")"
+    ;;
+
+disable)
+    rm -f "$RULE"
+    systemctl stop ada-home-dev-log.service 2>/dev/null || true
+    echo "ada-home-dev: disabled"
+    ;;
+
+uninstall)
+    rm -f "$RULE"
+    for u in $UNITS; do
+        systemctl stop "$u" 2>/dev/null || true
+        rm -f "$UNITDIR/$u"
+    done
+    systemctl daemon-reload
+    rm -rf "$LIBEXEC" "$RUNDIR"
+    echo "ada-home-dev: removed (the installed patch itself stays)"
+    ;;
+
+install)
+    mkdir -p -m 755 "$RUNDIR"
+    rm -f "$RUNDIR/install-status"
+    # Copy first into a root-only directory, then check the copies, so the
+    # files can't be swapped between the check and the install
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+    for f in patch.json unified_diff.patch; do
+        if [ ! -f "$SRC/$f" ] || [ -L "$SRC/$f" ]; then
+            die "$SRC/$f is missing or not a regular file"
+        fi
+        cp "$SRC/$f" "$tmp/$f"
+    done
+    [ "$(wc -c < "$tmp/patch.json")" -lt 4096 ] || die "patch.json is too large"
+    grep -q "\"name\": \"$NAME\"" "$tmp/patch.json" || die "patch.json is not for $NAME"
+    grep -q '^+++ ' "$tmp/unified_diff.patch" || die "the patch is empty"
+    headers=$(grep -E '^(\+\+\+|---) ' "$tmp/unified_diff.patch")
+    if echo "$headers" | grep -q '\.\.'; then
+        die "a file path in the patch contains '..'"
+    fi
+    bad=$(echo "$headers" | grep -v -E "^(\+\+\+ b/|--- a/)${PREFIX}[A-Za-z0-9_./-]+\$" | grep -v -x -e '--- /dev/null' || true)
+    [ -z "$bad" ] || die "the patch touches files outside /$PREFIX: $bad"
+    rm -rf "$DEST"
+    mkdir -p "$DEST"
+    cp "$tmp/patch.json" "$tmp/unified_diff.patch" "$DEST/"
+    chown -R root:root "$DEST"
+    chmod 755 "$DEST"
+    chmod 644 "$DEST/patch.json" "$DEST/unified_diff.patch"
+    echo "OK $(date) $(sha256sum "$DEST/unified_diff.patch" | cut -d' ' -f1)" > "$RUNDIR/install-status"
+    echo "ada-home-dev: installed $DEST"
+    ;;
+
+*)
+    echo "usage: $0 setup | enable [hours] | disable | uninstall | install" >&2
+    exit 2
+    ;;
+esac
