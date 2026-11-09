@@ -40,7 +40,20 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
              showApplicationOverLockscreen = true
          }
  
-@@ -975,7 +976,8 @@
+@@ -692,9 +693,10 @@
+                     visible: root.homeVisible
+ 
+                     dimmer {
+-                        offset: root.multitaskingHome ? Math.abs(homeLayerItem.events.offset) : 0
++                        // ada-home-sailfish: dim behind the covers page (the secondary screen), not Events
++                        offset: root.multitaskingHome ? Math.abs(homeLayerItem.switcher.offset) : 0
+                         distance: homeLayerItem._transposed ? homeLayerItem.height : homeLayerItem.width
+-                        relativeDim: !root.multitaskingHome || homeLayerItem.events.visible
++                        relativeDim: !root.multitaskingHome || homeLayerItem.switcher.visible
+                     }
+ 
+                     onTransitionComplete: ambienceChangeTimeout.running = false
+@@ -975,7 +977,8 @@
                          } else if (peekFilter.leftActive && Desktop.settings.left_peek_to_events) {
                              homeLayerItem.setCurrentItem(homeLayerItem.events, !childrenOpaque, root._peekDirection)
                          } else {
@@ -50,7 +63,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                          }
                      }
                  }
-@@ -989,7 +991,7 @@
+@@ -989,7 +992,7 @@
                  onGestureReset: {
                      if (isFullScreen) {
                          homeLayerItem.setCurrentItem(
@@ -59,7 +72,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                                      !childrenOpaque,
                                      root._peekDirection == "left" ? "right" : "left")
                          root.peekGestureReset()
-@@ -1091,8 +1093,8 @@
+@@ -1091,8 +1094,8 @@
  
                          onAboutToShowWindow: {
                              root.showApplicationOverLockscreen = Desktop.startupWizardRunning
@@ -70,7 +83,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                          }
                          onRequestFocus: {
                              if (root.visible) {
-@@ -1598,7 +1600,8 @@
+@@ -1598,7 +1601,8 @@
              return
          }
  
