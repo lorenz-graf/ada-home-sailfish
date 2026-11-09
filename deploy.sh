@@ -25,6 +25,9 @@ local_hash=$(sha256sum patch/ada-home-sailfish/unified_diff.patch | cut -d' ' -f
 ssh -o BatchMode=yes "$PHONE" "$PM.unapplyPatch ada-home-sailfish > /dev/null; mkdir -p ~/ada-home-sailfish"
 scp -q -o BatchMode=yes patch/ada-home-sailfish/* "$PHONE:ada-home-sailfish/"
 
+# lipstick's start time before the restart, to see when it is back
+before=$(ssh -o BatchMode=yes "$PHONE" "systemctl --user show lipstick -p ActiveEnterTimestampMonotonic")
+
 ssh -o BatchMode=yes "$PHONE" "
 set -e
 # Dry run against the live files. Links left behind by Patchmanager's
@@ -39,13 +42,23 @@ if [ \"\$($PM.getFailure)\" = '(true,)' ]; then $PM.resolveFailure; fi
 $PM.applyPatch ada-home-sailfish | grep -o 'SUCCESS\|FAILED'
 $PM.restartServices > /dev/null
 "
+# Wait until lipstick runs again with a new start time (up to 60 s)
 echo "Waiting for lipstick to restart..."
-sleep 15
+ssh -o BatchMode=yes "$PHONE" "
+before='$before'
+for i in \$(seq 60); do
+    sleep 1
+    now=\$(systemctl --user show lipstick -p ActiveEnterTimestampMonotonic -p ActiveState)
+    case \"\$now\" in *ActiveState=active*) ;; *) continue ;; esac
+    [ \"\$(echo \"\$now\" | grep Monotonic)\" != \"\$before\" ] && break
+done
+sleep 3
+"
 ssh -o BatchMode=yes "$PHONE" "
 systemctl --user show lipstick -p ActiveState -p ActiveEnterTimestamp -p NRestarts | tr '\n' ' '; echo
 echo \"patch applied: \$($PM.isPatchApplied ada-home-sailfish)  Patchmanager failure: \$($PM.getFailure)\"
 echo \"lipstick crashes in log: \$(grep -c 'lipstick.service: Main process exited, code=killed' /run/ada-home-dev/journal.txt)\"
 echo 'QML warnings:'
 grep -E 'lipstick\[' /run/ada-home-dev/journal.txt | grep -E '\[W\].*qml|unavailable|is not a type|Error' \
-    | grep -v 'LauncherGrid.qml:288\|nemothumbnail' | sed 's/.*lipstick\[[0-9]*\]: //' | cut -c1-250 | sort | uniq -c | head -20
+    | grep -v 'of object LauncherFolderItem\|nemothumbnail' | sed 's/.*lipstick\[[0-9]*\]: //' | cut -c1-250 | sort | uniq -c | head -20
 "

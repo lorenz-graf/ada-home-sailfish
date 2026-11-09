@@ -1150,7 +1150,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,250 @@
+@@ -0,0 +1,258 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1187,6 +1187,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: doubleTapLock; key: settings._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: hideStatusBar; key: settings._path + "hide_status_bar"; defaultValue: false }
 +    ConfigurationValue { id: hideAlarmBell; key: settings._path + "hide_alarm_bell"; defaultValue: false }
++    ConfigurationValue { id: weatherHeader; key: settings._path + "weather_header"; defaultValue: true }
 +    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
@@ -1318,6 +1319,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                description: "Running apps 3 per row, also with only a few apps"
 +                checked: smallCovers.value
 +                onToggled: smallCovers.value = !smallCovers.value
++            }
++
++            HomeSettingsSwitch {
++                label: "Weather header"
++                description: "Section header above the weather on the second page"
++                checked: weatherHeader.value
++                onToggled: weatherHeader.value = !weatherHeader.value
 +            }
 +
 +            SectionHeader { text: "Appearance" }
@@ -1768,7 +1776,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
-@@ -0,0 +1,61 @@
+@@ -0,0 +1,75 @@
 +/*
 + * ada-home-sailfish: the Events widgets (weather, calendar) above the app covers.
 + * Loads the same widgets as the Events view, from the same registry
@@ -1780,6 +1788,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +import Sailfish.Silica 1.0
 +import com.jolla.lipstick 0.1
 +import com.jolla.settings.system 1.0 // EventsWidgetsModel
++import Nemo.Configuration 1.0
 +
 +Column {
 +    id: root
@@ -1788,6 +1797,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +    property bool eventsViewVisible
 +
 +    spacing: Theme.paddingSmall
++
++    // Settings → Layout → Weather header
++    ConfigurationValue {
++        id: weatherHeaderConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/weather_header"
++        defaultValue: true
++    }
 +
 +    EventsWidgetsModel {
 +        id: widgetsModel
@@ -1802,12 +1819,17 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +
 +            width: root.width
 +
-+            // Section header for the calendar (registry path .../eventsview/calendar/...),
-+            // only when the calendar widget has loaded and shows something
++            // Section headers for the weather and the calendar (registry paths
++            // .../eventsview/weather/... and .../calendar/...), only when the widget
++            // has loaded and shows something. The weather loader keeps a small
++            // height even when empty, so it counts once its inner item exists.
 +            SectionHeader {
-+                visible: model.path.indexOf("/calendar/") !== -1
-+                         && widgetLoader.status === Loader.Ready && widgetLoader.height > 0
-+                text: "Calendar"
++                readonly property bool isCalendar: model.path.indexOf("/calendar/") !== -1
++
++                visible: widgetLoader.status === Loader.Ready && !!widgetLoader.item
++                         && (isWeather ? weatherHeaderConfig.value && !!widgetLoader.item.item
++                                       : isCalendar && widgetLoader.height > 0)
++                text: isWeather ? "Weather" : "Calendar"
 +            }
 +
 +            Loader {
