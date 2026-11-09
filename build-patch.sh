@@ -8,7 +8,7 @@ set -eu
 cd "$(dirname "$0")"
 
 NAME=ada-home-sailfish
-VERSION=0.1.1
+VERSION=0.2.0
 OUT=patch/$NAME
 
 rm -rf "$OUT"
@@ -39,7 +39,7 @@ cat > "$OUT/patch.json" <<EOF
 {
     "name": "$NAME",
     "display_name": "Ada Home",
-    "description": "Reworked homescreen layout. Notifications in the Top menu (swipe to dismiss), Events page as home, app covers on the side page.",
+    "description": "Minimal text homescreen: big clock, apps as text and swipe apps on Home, notifications in the Top menu, weather, calendar and running apps on the second page.",
     "category": "homescreen",
     "author": "ada",
     "version": "$VERSION",

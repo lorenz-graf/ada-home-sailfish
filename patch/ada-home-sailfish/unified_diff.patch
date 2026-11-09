@@ -93,6 +93,349 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
          var isLockScreenWindow = window.isInProcess && window.title == "Lock Screen"
          var isLauncherWindow = window.isInProcess && window.title == "Launcher"
          var isShutdownWindow = window.isInProcess && window.title == "Shutdown"
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
+--- a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
+@@ -79,9 +79,20 @@
+                 fill: parent
+             }
+             parent: lockScreenLayer && lockScreenLayer.lockScreenEventsEnabled ? eventsContainer : desktop
++            // ada-home-sailfish: on Home the favourites replace the Events list;
++            // it stays for the lock screen (weather and calendar are on the covers page)
++            visible: parent !== desktop
+             orientation: parent.orientation
+         }
+ 
++        // ada-home-sailfish: clock and favourite apps
++        HomeFavourites {
++            anchors.fill: parent
++            statusBarHeight: Lipstick.compositor.homeLayer.statusBar.baseY
++                             + Lipstick.compositor.homeLayer.statusBar.height
++            active: Lipstick.compositor.eventsLayer.visible
++        }
++
+         Timer {
+             id: eventsViewInactiveTimer
+ 
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
+@@ -0,0 +1,315 @@
++/*
++ * ada-home-sailfish: the Home page. Big clock and date, then up to eight
++ * favourite apps as plain text. Long-press to choose
++ * the favourites from all apps; tap the clock to open the Clock app.
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import Sailfish.Lipstick 1.0
++import Nemo.Configuration 1.0
++import org.nemomobile.lipstick 0.1
++import com.jolla.lipstick 0.1
++
++Item {
++    id: root
++
++    property real statusBarHeight
++    property bool active: true
++
++    readonly property int maximumFavourites: 8
++    readonly property string clockApp: "/usr/share/applications/jolla-clock.desktop"
++    readonly property QtObject launcherModel: Lipstick.compositor.launcherModel
++
++    property bool editing
++    // LauncherItems of the favourites, in the chosen order
++    property var favouriteItems: []
++    // All apps for the picker, sorted by name
++    property var allItems: []
++
++    function _launcherItems() {
++        var list = []
++        if (!launcherModel) {
++            return list
++        }
++        for (var i = 0; ; ++i) {
++            var item = launcherModel.get(i)
++            if (!item) {
++                break
++            }
++            if (item.entryType === "Application" && item.title.length > 0) {
++                list.push(item)
++            }
++        }
++        return list
++    }
++
++    function _findItem(items, path) {
++        for (var i = 0; i < items.length; ++i) {
++            if (items[i].filePath === path) {
++                return items[i]
++            }
++        }
++        return null
++    }
++
++    function _paths() {
++        var value = favouritesConfig.value
++        return value ? Array.prototype.slice.call(value) : []
++    }
++
++    function refresh() {
++        var items = _launcherItems()
++        var result = []
++        var paths = _paths()
++        for (var i = 0; i < paths.length; ++i) {
++            var item = _findItem(items, paths[i])
++            if (item) {
++                result.push(item)
++            }
++        }
++        favouriteItems = result
++        if (editing) {
++            items.sort(function (a, b) { return a.title.localeCompare(b.title) })
++            allItems = items
++        }
++    }
++
++    function isFavourite(path) {
++        return _paths().indexOf(path) !== -1
++    }
++
++    function toggleFavourite(path) {
++        var paths = _paths()
++        var index = paths.indexOf(path)
++        if (index !== -1) {
++            paths.splice(index, 1)
++        } else if (paths.length < maximumFavourites) {
++            paths.push(path)
++        }
++        favouritesConfig.value = paths
++    }
++
++    function launch(item) {
++        if (item && Desktop.instance && Desktop.instance.switcher) {
++            Desktop.instance.switcher.activateWindowFor(item)
++        }
++    }
++
++    function startEditing() {
++        editing = true
++        refresh()
++    }
++
++    onEditingChanged: if (!editing) allItems = []
++    onActiveChanged: if (!active) editing = false
++    onLauncherModelChanged: refresh()
++    Component.onCompleted: refresh()
++
++    ConfigurationValue {
++        id: favouritesConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/favourites"
++        defaultValue: []
++        onValueChanged: root.refresh()
++    }
++
++    Connections {
++        target: root.launcherModel
++        ignoreUnknownSignals: true
++        onRowsInserted: root.refresh()
++        onRowsRemoved: root.refresh()
++        onModelReset: root.refresh()
++    }
++
++    // Normal view: clock, date and favourites
++    MouseArea {
++        id: homeArea
++
++        anchors.fill: parent
++        visible: !root.editing
++        onPressAndHold: root.startEditing()
++
++        BackgroundItem {
++            id: clockButton
++
++            x: Theme.horizontalPageMargin - Theme.paddingMedium
++            y: root.statusBarHeight + Theme.paddingLarge
++            width: clockColumn.width + 2 * Theme.paddingMedium
++            height: clockColumn.height + 2 * Theme.paddingSmall
++            highlightedColor: "transparent"
++            onClicked: root.launch(root._findItem(root._launcherItems(), root.clockApp))
++            onPressAndHold: root.startEditing()
++
++            Column {
++                id: clockColumn
++
++                x: Theme.paddingMedium
++                y: Theme.paddingSmall
++
++                ClockItem {
++                    id: clock
++
++                    updatesEnabled: root.active
++                    color: clockButton.highlighted ? Theme.highlightColor : Theme.primaryColor
++                    font.pixelSize: Theme.fontSizeHuge * 1.5
++                }
++
++                Label {
++                    text: Qt.formatDate(clock.time, "dddd, d MMMM")
++                    color: clockButton.highlighted ? Theme.highlightColor : Theme.secondaryColor
++                    font.pixelSize: Theme.fontSizeMedium
++                }
++            }
++        }
++
++        Column {
++            id: favouritesColumn
++
++            anchors {
++                left: parent.left
++                right: parent.right
++                verticalCenter: parent.verticalCenter
++                verticalCenterOffset: (clockButton.y + clockButton.height) / 2
++            }
++
++            Repeater {
++                model: root.favouriteItems
++
++                delegate: BackgroundItem {
++                    id: favourite
++
++                    width: favouritesColumn.width
++                    height: Theme.itemSizeMedium
++                    highlightedColor: "transparent"
++                    onClicked: root.launch(modelData)
++                    onPressAndHold: root.startEditing()
++
++                    Label {
++                        x: Theme.horizontalPageMargin
++                        width: parent.width - 2 * Theme.horizontalPageMargin
++                        anchors.verticalCenter: parent.verticalCenter
++                        text: modelData.title
++                        color: favourite.highlighted ? Theme.highlightColor : Theme.primaryColor
++                        font.pixelSize: Theme.fontSizeLarge
++                        truncationMode: TruncationMode.Fade
++                    }
++                }
++            }
++
++            Label {
++                visible: root.favouriteItems.length === 0
++                x: Theme.horizontalPageMargin
++                width: parent.width - 2 * Theme.horizontalPageMargin
++                wrapMode: Text.Wrap
++                text: "Long-press to choose your favourite apps"
++                color: Theme.secondaryHighlightColor
++                font.pixelSize: Theme.fontSizeMedium
++            }
++        }
++    }
++
++    // Picker: all apps, tap to add or remove
++    Item {
++        anchors.fill: parent
++        visible: root.editing
++
++        Item {
++            id: pickerHeader
++
++            y: root.statusBarHeight
++            width: parent.width
++            height: Theme.itemSizeMedium
++
++            Label {
++                anchors {
++                    left: parent.left
++                    leftMargin: Theme.horizontalPageMargin
++                    right: doneButton.left
++                    verticalCenter: parent.verticalCenter
++                }
++                text: "Favourites " + root.favouriteItems.length + "/" + root.maximumFavourites
++                color: Theme.highlightColor
++                font.pixelSize: Theme.fontSizeLarge
++                truncationMode: TruncationMode.Fade
++            }
++
++            Button {
++                id: doneButton
++
++                anchors {
++                    right: parent.right
++                    rightMargin: Theme.horizontalPageMargin
++                    verticalCenter: parent.verticalCenter
++                }
++                preferredWidth: Theme.buttonWidthExtraSmall
++                text: "Done"
++                onClicked: root.editing = false
++            }
++        }
++
++        SilicaListView {
++            id: pickerList
++
++            anchors {
++                top: pickerHeader.bottom
++                bottom: parent.bottom
++                left: parent.left
++                right: parent.right
++            }
++            clip: true
++            model: root.allItems
++
++            delegate: BackgroundItem {
++                id: pickerItem
++
++                readonly property bool selected: (root.favouriteItems, root.isFavourite(modelData.filePath))
++
++                width: pickerList.width
++                height: Theme.itemSizeMedium
++                enabled: selected || root.favouriteItems.length < root.maximumFavourites
++                onClicked: root.toggleFavourite(modelData.filePath)
++
++                LauncherIcon {
++                    id: icon
++
++                    x: Theme.horizontalPageMargin
++                    anchors.verticalCenter: parent.verticalCenter
++                    icon: modelData.iconId
++                    size: Theme.iconSizeMedium
++                    opacity: pickerItem.enabled ? 1.0 : Theme.opacityLow
++                }
++
++                Label {
++                    anchors {
++                        left: icon.right
++                        leftMargin: Theme.paddingLarge
++                        right: check.left
++                        rightMargin: Theme.paddingMedium
++                        verticalCenter: parent.verticalCenter
++                    }
++                    text: modelData.title
++                    color: pickerItem.selected || pickerItem.highlighted ? Theme.highlightColor : Theme.primaryColor
++                    opacity: pickerItem.enabled ? 1.0 : Theme.opacityLow
++                    truncationMode: TruncationMode.Fade
++                }
++
++                Icon {
++                    id: check
++
++                    anchors {
++                        right: parent.right
++                        rightMargin: Theme.horizontalPageMargin
++                        verticalCenter: parent.verticalCenter
++                    }
++                    visible: pickerItem.selected
++                    source: "image://theme/icon-m-acknowledge"
++                    color: Theme.highlightColor
++                }
++            }
++
++            VerticalScrollDecorator {}
++        }
++    }
++}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
 --- a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
@@ -105,7 +448,16 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
  
      peekFilter {
          leftEnabled: Lipstick.compositor.systemInitComplete
-@@ -181,8 +181,6 @@
+@@ -160,6 +160,8 @@
+             property real opacityFromY: Math.max(0, (height + y*1.5) / height)
+ 
+             backgroundVisible: true
++            // ada-home-sailfish: Home (Events page) has its own big clock
++            clockHidden: homescreen.currentItem === eventsLayer
+             y: -currentItem.statusOffset * (1.0 - homescreen.progress)
+                - (alternateItem ? alternateItem.statusOffset * homescreen.progress : 0)
+             updatesEnabled: Lipstick.compositor.homeActive
+@@ -181,8 +183,6 @@
              width: homescreen.width
              height: homescreen.height
  
@@ -114,7 +466,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
              anchors { leftMargin: leftItem.minimizeMargin }
          },
          SwitcherLayer {
-@@ -207,6 +205,8 @@
+@@ -207,6 +207,8 @@
              leftItem: eventsLayer
              rightItem: eventsLayer
  
@@ -123,7 +475,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
              width: homescreen.width
              height: homescreen.height
  
-@@ -270,7 +270,7 @@
+@@ -270,7 +272,7 @@
  
                      if (layer.isCurrentItem) {
                          layer.cleanup = cleanup
@@ -182,6 +534,37 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
  
                          contentLeftMargin: groupHeader.textLeftMargin
                          summaryText: notification ? notification.summary : ""
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml
+--- a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml
++++ b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml
+@@ -27,6 +27,7 @@
+     property bool updatesEnabled: true
+     property bool recentlyOnDisplay: true
+     property bool lockscreenMode
++    property bool clockHidden // ada-home-sailfish: Home shows its own big clock
+     property color color: Theme.primaryColor
+     property int cornerPadding: {
+         // assuming the roundings are simple with x and y detached the radius amount from edges.
+@@ -115,7 +116,7 @@
+                 x: Math.max((iconBar.width - width)/2 - parent.x, 0)
+                 y: (parent.height - height) / 2
+                 sourceComponent: lockscreenMode ? lockIcon
+-                                                : displayClockOnLauncher.value ? undefined // clock already shown on the launcher header
++                                                : (displayClockOnLauncher.value || statusArea.clockHidden) ? undefined // clock already shown on the launcher header
+                                                                                : timeText
+ 
+ 
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml
+--- a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml
++++ b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml
+@@ -13,6 +13,7 @@
+     property alias updatesEnabled: statusArea.updatesEnabled
+     property alias recentlyOnDisplay: statusArea.recentlyOnDisplay
+     property alias lockscreenMode: statusArea.lockscreenMode
++    property alias clockHidden: statusArea.clockHidden // ada-home-sailfish
+     property alias color: statusArea.color
+     property alias backgroundVisible: background.visible
+     property alias shadowVisible: statusArea.shadowVisible
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
