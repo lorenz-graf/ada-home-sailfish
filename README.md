@@ -94,7 +94,7 @@ The patch is built from the difference between the stock files and the changed f
 ./build-patch.sh   # -> patch/ada-home-sailfish/{patch.json,unified_diff.patch}
 ```
 
-Before writing the patch it runs three checks, the last two over SSH on the phone (`PHONE=user@host`, see the script for the default):
+Before writing the patch it runs three checks, the last two over SSH on the phone. The phone's address comes from `PHONE=user@host` or from a file `phone.conf` (one line, git-ignored):
 
 1. `qmllint-qt5` on every changed QML file (syntax).
 2. `check-imports.py`: asks the phone which installed QML module provides each type a file uses, and fails on a missing import. qmllint doesn't catch these; lipstick only reports "X is not a type" when it starts.

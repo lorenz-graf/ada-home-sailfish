@@ -8,7 +8,15 @@
 set -eu
 cd "$(dirname "$0")"
 
-PHONE=${PHONE:-defaultuser@phone}
+# Phone to check against / deploy to: $PHONE, or the git-ignored file
+# phone.conf (one line, e.g. defaultuser@192.168.x.y)
+if [ -z "${PHONE:-}" ] && [ -f phone.conf ]; then
+    PHONE=$(head -n 1 phone.conf)
+fi
+if [ -z "${PHONE:-}" ]; then
+    echo "Set PHONE=defaultuser@<phone address> or put it in phone.conf" >&2
+    exit 1
+fi
 PM='gdbus call --system --dest org.SfietKonstantin.patchmanager --object-path /org/SfietKonstantin/patchmanager --method org.SfietKonstantin.patchmanager'
 
 ./build-patch.sh

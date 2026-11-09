@@ -24,7 +24,15 @@ qmllint-qt5 $changed
 
 # Missing imports only fail inside lipstick ("X is not a type"), so check
 # them against the modules installed on the phone (needs SSH)
-PHONE=${PHONE:-defaultuser@phone}
+# Phone to check against / deploy to: $PHONE, or the git-ignored file
+# phone.conf (one line, e.g. defaultuser@192.168.x.y)
+if [ -z "${PHONE:-}" ] && [ -f phone.conf ]; then
+    PHONE=$(head -n 1 phone.conf)
+fi
+if [ -z "${PHONE:-}" ]; then
+    echo "Set PHONE=defaultuser@<phone address> or put it in phone.conf" >&2
+    exit 1
+fi
 ./check-imports.py "$PHONE" stock $changed
 
 # Compile errors qmllint misses (e.g. "Cannot override FINAL property"):
@@ -45,7 +53,7 @@ cat > "$OUT/patch.json" <<EOF
     "display_name": "Ada Home",
     "description": "Minimal text homescreen: big clock, apps as text and swipe apps on Home, notifications in the Top menu, weather, calendar and running apps on the second page.",
     "category": "homescreen",
-    "author": "ada",
+    "author": "lorenz-graf",
     "version": "$VERSION",
     "compatible": ["5.2.0.22"]
 }
