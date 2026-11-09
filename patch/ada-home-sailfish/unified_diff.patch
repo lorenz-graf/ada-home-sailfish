@@ -386,7 +386,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,713 @@
+@@ -0,0 +1,780 @@
 +/*
 + * ada-home-sailfish: the Home page.
 + * - Big clock and date. Tap: opens the chosen app (default Clock /
@@ -1098,6 +1098,73 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        swipeRightName: (root.launcherItems, swipeRightConfig.value, root.swipeAppName("swipeRight"))
 +        onPickApp: root.openPicker(target)
 +        onDone: root.closeView()
++    }
++
++    // Loading screen while an app starts. Stock lipstick shows a loading cover
++    // on the covers page; Home is the start page now, so show the app's icon,
++    // name and a spinner here until its window appears. It follows the covers
++    // page's own launch tracking (launchingItem, appShowInProgress).
++    readonly property Item _switcher: Desktop.instance ? Desktop.instance.switcher : null
++    readonly property Item _launchingCover: _switcher ? _switcher.launchingItem : null
++    readonly property QtObject _launchingApp: _launchingCover ? _launchingCover.launcherItem : null
++    readonly property bool _launching: !!_switcher && _switcher.appShowInProgress && !!_launchingApp
++    // Hidden again after 10 s or a tap, in case an app never shows a window
++    property bool _splashDismissed
++
++    on_LaunchingChanged: {
++        if (_launching) {
++            _splashDismissed = false
++            splashTimeout.restart()
++        }
++    }
++
++    Timer {
++        id: splashTimeout
++        interval: 10000
++        onTriggered: root._splashDismissed = true
++    }
++
++    Rectangle {
++        id: splash
++
++        anchors.fill: parent
++        color: Theme.rgba(Theme.highlightDimmerColor, 0.9)
++        opacity: root._launching && !root._splashDismissed ? 1 : 0
++        visible: opacity > 0
++        Behavior on opacity { FadeAnimation {} }
++
++        // Takes the touches while visible; a tap hides it
++        MouseArea {
++            anchors.fill: parent
++            onClicked: root._splashDismissed = true
++        }
++
++        Column {
++            anchors.centerIn: parent
++            width: parent.width - 2 * Theme.horizontalPageMargin
++            spacing: Theme.paddingLarge
++
++            LauncherIcon {
++                anchors.horizontalCenter: parent.horizontalCenter
++                icon: root._launchingApp ? root._launchingApp.iconId : ""
++                size: Theme.iconSizeLauncher * 1.5
++            }
++
++            Label {
++                width: parent.width
++                horizontalAlignment: Text.AlignHCenter
++                text: root._launchingApp ? root._launchingApp.title : ""
++                color: Theme.highlightColor
++                font.pixelSize: Theme.fontSizeLarge
++                wrapMode: Text.Wrap
++            }
++
++            BusyIndicator {
++                anchors.horizontalCenter: parent.horizontalCenter
++                size: BusyIndicatorSize.Medium
++                running: splash.visible
++            }
++        }
 +    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml

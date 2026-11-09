@@ -22,6 +22,14 @@ PM='gdbus call --system --dest org.SfietKonstantin.patchmanager --object-path /o
 ./build-patch.sh
 local_hash=$(sha256sum patch/ada-home-sailfish/unified_diff.patch | cut -d' ' -f1)
 
+# Check the helper's time window before touching anything (restarting the log
+# unit is allowed only while the polkit rule is valid)
+if ! ssh -o BatchMode=yes "$PHONE" "systemctl restart ada-home-dev-log.service" 2>/dev/null; then
+    echo "The dev helper is not enabled (or its time window expired). Enable it on the phone:" >&2
+    echo "  devel-su /usr/libexec/ada-home-dev/ada-home-dev enable 4" >&2
+    exit 1
+fi
+
 ssh -o BatchMode=yes "$PHONE" "$PM.unapplyPatch ada-home-sailfish > /dev/null; mkdir -p ~/ada-home-sailfish"
 scp -q -o BatchMode=yes patch/ada-home-sailfish/* "$PHONE:ada-home-sailfish/"
 

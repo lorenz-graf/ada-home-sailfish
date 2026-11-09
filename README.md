@@ -17,6 +17,7 @@ Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 - **Long-press on empty space:** Settings. While Settings is open, the clock and date stay visible so changes show right away.
 - **Swipe left or right** (not from the screen edge): opens a configurable app (defaults: right to left = Calculator, left to right = Contacts; "Off" switches to the second page). Swipes from the edge still switch pages as before.
 - **Double tap on empty space:** turns the display off and locks, like the stock Top menu lock button (off by default).
+- **Loading screen:** while an app starts, its icon, name and a spinner show until the app's window appears (tap to hide; hides by itself after 10 s).
 - On Home the status bar uses the Home text colour and hides its clock (Home has its own). Optionally it stays hidden until you touch Home. Elsewhere it stays as it is.
 
 ## Settings
