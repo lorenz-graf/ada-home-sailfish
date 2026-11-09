@@ -34,7 +34,7 @@ cat > "$OUT/patch.json" <<EOF
 {
     "name": "$NAME",
     "display_name": "Ada Home",
-    "description": "Reworked homescreen layout. Step 1: notifications in the Top menu, swipe to dismiss.",
+    "description": "Reworked homescreen layout. Notifications in the Top menu (swipe to dismiss), Events page as home, app covers on the side page.",
     "category": "homescreen",
     "author": "ada",
     "version": "$VERSION",

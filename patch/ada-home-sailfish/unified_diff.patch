@@ -1,3 +1,124 @@
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstick-jolla-home-qt5/compositor.qml
+--- a/usr/share/lipstick-jolla-home-qt5/compositor.qml
++++ b/usr/share/lipstick-jolla-home-qt5/compositor.qml
+@@ -300,7 +300,8 @@
+         }
+     }
+ 
+-    function goToSwitcher(minimize) { goToHome(homeLayerItem.switcher, minimize) }
++    // ada-home-sailfish: home is the Events page now, covers are the side page
++    function goToSwitcher(minimize) { goToHome(homeLayerItem.events, minimize) }
+ 
+     function goToEvents() { goToHome(homeLayerItem.events, true) }
+ 
+@@ -309,8 +310,8 @@
+ 
+         if (window && window.userData) {
+             if (appLayerItem.window == window.userData) {
+-                homeLayerItem.lastActiveLayer = homeLayerItem.switcher
+-                homeLayerItem.setCurrentItem(homeLayerItem.switcher, homeVisible)
++                homeLayerItem.lastActiveLayer = homeLayerItem.events // ada-home-sailfish
++                homeLayerItem.setCurrentItem(homeLayerItem.events, homeVisible)
+                 alarmLayerItem.hide()
+                 if (lipstickSettings.lockscreenVisible) {
+                     unlock()
+@@ -514,7 +515,7 @@
+             showApplicationOverLockscreen = w === appLayerItem.window
+             // Nothing more to do, allow this window to become current window.
+         } else if (w == lockScreenLayerItem.window) {
+-            homeLayerItem.lastActiveLayer = homeLayerItem.switcher
++            homeLayerItem.lastActiveLayer = homeLayerItem.events // ada-home-sailfish
+             showApplicationOverLockscreen = Desktop.startupWizardRunning
+             if (!lipstickSettings.lockscreenVisible) {
+                 minimizeLaunchingWindows()
+@@ -535,7 +536,7 @@
+         } else if (w == homeLayerItem.switcher.window) {
+             homeLayerItem.lastActiveLayer = homeLayerItem.switcher
+         } else if (w == appLayerItem.window) {
+-            homeLayerItem.lastActiveLayer = homeLayerItem.switcher
++            homeLayerItem.lastActiveLayer = homeLayerItem.events // ada-home-sailfish
+             showApplicationOverLockscreen = true
+         }
+ 
+@@ -975,7 +976,8 @@
+                         } else if (peekFilter.leftActive && Desktop.settings.left_peek_to_events) {
+                             homeLayerItem.setCurrentItem(homeLayerItem.events, !childrenOpaque, root._peekDirection)
+                         } else {
+-                            homeLayerItem.setCurrentItem(homeLayerItem.switcher, !childrenOpaque, root._peekDirection)
++                            // ada-home-sailfish
++                            homeLayerItem.setCurrentItem(homeLayerItem.events, !childrenOpaque, root._peekDirection)
+                         }
+                     }
+                 }
+@@ -989,7 +991,7 @@
+                 onGestureReset: {
+                     if (isFullScreen) {
+                         homeLayerItem.setCurrentItem(
+-                                    homeLayerItem.lastActiveLayer || homeLayerItem.switcher,
++                                    homeLayerItem.lastActiveLayer || homeLayerItem.events, // ada-home-sailfish
+                                     !childrenOpaque,
+                                     root._peekDirection == "left" ? "right" : "left")
+                         root.peekGestureReset()
+@@ -1091,8 +1093,8 @@
+ 
+                         onAboutToShowWindow: {
+                             root.showApplicationOverLockscreen = Desktop.startupWizardRunning
+-                            homeLayerItem.lastActiveLayer = homeLayerItem.switcher
+-                            homeLayerItem.setCurrentItem(homeLayerItem.switcher, root.homeVisible)
++                            homeLayerItem.lastActiveLayer = homeLayerItem.events // ada-home-sailfish
++                            homeLayerItem.setCurrentItem(homeLayerItem.events, root.homeVisible)
+                         }
+                         onRequestFocus: {
+                             if (root.visible) {
+@@ -1598,7 +1600,8 @@
+             return
+         }
+ 
+-        var isHomeWindow = window.isInProcess && homeLayer.window == null && window.title == "Home"
++        // ada-home-sailfish: the start page is no longer the covers page
++        var isHomeWindow = window.isInProcess && homeLayerItem.switcher.window == null && window.title == "Home"
+         var isLockScreenWindow = window.isInProcess && window.title == "Lock Screen"
+         var isLauncherWindow = window.isInProcess && window.title == "Launcher"
+         var isShutdownWindow = window.isInProcess && window.title == "Shutdown"
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
+--- a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
++++ b/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
+@@ -100,7 +100,7 @@
+     orientation: Lipstick.compositor.topmostWindowOrientation
+     pan: !Lipstick.compositor.deviceIsLocked && !Lipstick.compositor.topMenuLayer.active
+ 
+-    currentItem: switcherLayer
++    currentItem: eventsLayer // ada-home-sailfish: Events is the start page, covers the side page
+ 
+     peekFilter {
+         leftEnabled: Lipstick.compositor.systemInitComplete
+@@ -181,8 +181,6 @@
+             width: homescreen.width
+             height: homescreen.height
+ 
+-            visible: false
+-
+             anchors { leftMargin: leftItem.minimizeMargin }
+         },
+         SwitcherLayer {
+@@ -207,6 +205,8 @@
+             leftItem: eventsLayer
+             rightItem: eventsLayer
+ 
++            visible: false // ada-home-sailfish: not the start page
++
+             width: homescreen.width
+             height: homescreen.height
+ 
+@@ -270,7 +270,7 @@
+ 
+                     if (layer.isCurrentItem) {
+                         layer.cleanup = cleanup
+-                        homescreen.setCurrentItem(switcherLayer, homescreen.visible)
++                        homescreen.setCurrentItem(eventsLayer, homescreen.visible) // ada-home-sailfish
+                     } else if (layer.isAlternateItem) {
+                         layer.cleanup = cleanup
+                     } else {
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
 --- a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
