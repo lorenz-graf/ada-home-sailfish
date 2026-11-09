@@ -32,6 +32,7 @@ All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 | | Side margin, Top margin, Bottom margin (steps of one standard spacing) | 0 | `margin_side`, `margin_top`, `margin_bottom` |
 | | Clock to apps distance (Auto = centred) | Auto | `apps_gap` |
 | | Always small covers (running apps 3 per row) | On | `small_covers` |
+| | Weather header (on the second page) | On | `weather_header` |
 | Appearance | Text size | 1.0 | `text_scale` |
 | | Bold font | Off | `bold` |
 | | Text shadow (Off / Small / Medium / Large) | Small | `shadow_level` |
