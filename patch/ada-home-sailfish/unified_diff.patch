@@ -169,6 +169,82 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
  
                          contentLeftMargin: groupHeader.textLeftMargin
                          summaryText: notification ? notification.summary : ""
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
+@@ -0,0 +1,36 @@
++/*
++ * ada-home-sailfish: the Events widgets (weather, calendar) above the app covers.
++ * Loads the same widgets as the Events view, from the same registry
++ * (/usr/share/lipstick/eventswidgets/*.json).
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import com.jolla.lipstick 0.1
++import com.jolla.settings.system 1.0 // EventsWidgetsModel
++
++Column {
++    id: root
++
++    // The stock widgets read this name from the page that loads them
++    property bool eventsViewVisible
++
++    spacing: Theme.paddingSmall
++
++    EventsWidgetsModel {
++        id: widgetsModel
++        onlyUserConfigurable: false
++    }
++
++    Repeater {
++        model: widgetsModel
++
++        delegate: Loader {
++            width: root.width
++            visible: active
++            active: model.enabled
++            source: model.path
++        }
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
+--- a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
++++ b/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
+@@ -382,12 +382,21 @@
+         visible: Lipstick.compositor.switcherLayer.scale === 1.0 && switcherRoot.contentHeight > switcherRoot.height
+     }
+ 
++    // ada-home-sailfish: weather and calendar above the covers
++    CoversWidgets {
++        id: coversWidgets
++
++        y: switcherGrid.baseY
++        width: switcherRoot.width
++        eventsViewVisible: switcherRoot.visible
++    }
++
+     MouseArea {
+         id: switcherWrapper
+ 
+         objectName: "Switcher_wrapper"
+ 
+-        y: switcherGrid.baseY
++        y: switcherGrid.baseY + coversWidgets.height + (coversWidgets.height > 0 ? Theme.paddingLarge : 0)
+         height: switcherGrid.implicitHeight <= switcherRoot.height - y
+                 ? switcherRoot.height - y
+                 : switcherGrid.implicitHeight + switcherGrid.rowSpacing - 1
+@@ -639,7 +648,8 @@
+             Binding {
+                 target: Lipstick.compositor.homeLayer
+                 property: "statusMargin"
+-                value: switcherWrapper.y
++                // ada-home-sailfish: not including the widgets above the covers
++                value: switcherGrid.baseY
+             }
+ 
+             Component.onCompleted: {
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml

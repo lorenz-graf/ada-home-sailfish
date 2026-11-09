@@ -22,6 +22,11 @@ if [ -z "$changed" ]; then
 fi
 qmllint-qt5 $changed
 
+# Missing imports only fail inside lipstick ("X is not a type"), so check
+# them against the modules installed on the phone (needs SSH)
+PHONE=${PHONE:-defaultuser@phone}
+./check-imports.py "$PHONE" stock $changed
+
 # a/ and b/ prefixes, no timestamps, so `patch -p1 -d /` applies it
 diff -ruN stock work \
     | sed -e 's#^--- stock/[^\t]*\t1970-01-01.*#--- /dev/null#' \
