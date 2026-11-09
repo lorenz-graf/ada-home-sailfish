@@ -1065,7 +1065,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,226 @@
+@@ -0,0 +1,234 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1100,6 +1100,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: shadowLevel; key: settings._path + "shadow_level"; defaultValue: 1 }
 +    ConfigurationValue { id: textColor; key: settings._path + "text_color"; defaultValue: 0 }
 +    ConfigurationValue { id: doubleTapLock; key: settings._path + "double_tap_lock"; defaultValue: false }
++    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTop; key: settings._path + "margin_top"; defaultValue: 0 }
@@ -1223,6 +1224,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                value: marginBottom.value
 +                maximum: 20
 +                onStepped: marginBottom.value = newValue
++            }
++
++            HomeSettingsSwitch {
++                label: "Always small covers"
++                description: "Running apps 3 per row, also with only a few apps"
++                checked: smallCovers.value
++                onToggled: smallCovers.value = !smallCovers.value
 +            }
 +
 +            SectionHeader { text: "Appearance" }
@@ -1555,7 +1563,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
-@@ -0,0 +1,36 @@
+@@ -0,0 +1,50 @@
 +/*
 + * ada-home-sailfish: the Events widgets (weather, calendar) above the app covers.
 + * Loads the same widgets as the Events view, from the same registry
@@ -1584,18 +1592,57 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +    Repeater {
 +        model: widgetsModel
 +
-+        delegate: Loader {
++        delegate: Column {
 +            width: root.width
-+            visible: active
-+            active: model.enabled
-+            source: model.path
++            visible: widgetLoader.active
++
++            // Section header for the calendar (registry path .../eventsview/calendar/...),
++            // only when the calendar widget has loaded and shows something
++            SectionHeader {
++                visible: model.path.indexOf("/calendar/") !== -1
++                         && widgetLoader.status === Loader.Ready && widgetLoader.height > 0
++                text: "Calendar"
++            }
++
++            Loader {
++                id: widgetLoader
++
++                width: parent.width
++                active: model.enabled
++                source: model.path
++            }
 +        }
 +    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 --- a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
-@@ -382,12 +382,21 @@
+@@ -12,6 +12,7 @@
+ import Sailfish.Silica.private 1.0
+ import Sailfish.Policy 1.0
+ import Sailfish.Lipstick 1.0
++import Nemo.Configuration 1.0
+ import "../compositor"
+ import "../main"
+ 
+@@ -31,6 +32,16 @@
+ 
+     property alias model: switcherModel
+ 
++    // ada-home-sailfish: Settings → Layout → Always small covers (3 per row
++    // also with few apps). Off = stock: large covers until they don't fit.
++    ConfigurationValue {
++        id: smallCoversConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/small_covers"
++        defaultValue: true
++        onValueChanged: switcherGrid.updateColumns()
++    }
++
+     property int secondLastAppIndex
+ 
+     onVisibleChanged: {
+@@ -382,12 +393,32 @@
          visible: Lipstick.compositor.switcherLayer.scale === 1.0 && switcherRoot.contentHeight > switcherRoot.height
      }
  
@@ -1608,17 +1655,58 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 +        eventsViewVisible: switcherRoot.visible
 +    }
 +
++    // ada-home-sailfish: header above the covers, only while apps are running
++    SectionHeader {
++        id: runningAppsHeader
++
++        y: coversWidgets.y + coversWidgets.height
++        visible: switcherRoot.count > 0
++        text: "Running apps"
++    }
++
      MouseArea {
          id: switcherWrapper
  
          objectName: "Switcher_wrapper"
  
 -        y: switcherGrid.baseY
-+        y: switcherGrid.baseY + coversWidgets.height + (coversWidgets.height > 0 ? Theme.paddingLarge : 0)
++        y: runningAppsHeader.visible
++           ? runningAppsHeader.y + runningAppsHeader.height
++           : switcherGrid.baseY + coversWidgets.height + (coversWidgets.height > 0 ? Theme.paddingLarge : 0)
          height: switcherGrid.implicitHeight <= switcherRoot.height - y
                  ? switcherRoot.height - y
                  : switcherGrid.implicitHeight + switcherGrid.rowSpacing - 1
-@@ -639,7 +648,8 @@
+@@ -410,7 +441,8 @@
+             readonly property int largeItemCount: largeColumns * largeRows
+             property QtObject ngfEffect
+ 
+-            columns: largeColumns
++            columns: allowSmallCovers && smallCoversConfig.value ? smallColumns : largeColumns
++            coverSize: allowSmallCovers && smallCoversConfig.value ? Theme.coverSizeSmall : Theme.coverSizeLarge
+             statusBarHeight: Lipstick.compositor.multitaskingHome ? switcherRoot.statusBarHeight : 0
+ 
+             function updateColumns() {
+@@ -426,7 +458,8 @@
+ 
+             function doUpdateColumns() {
+                 var cols = switcherGrid.largeColumns
+-                if (switcherGrid.allowSmallCovers && switcherModel.itemCount > switcherGrid.largeItemCount)
++                if (switcherGrid.allowSmallCovers
++                        && (smallCoversConfig.value || switcherModel.itemCount > switcherGrid.largeItemCount))
+                     cols = switcherGrid.smallColumns
+                 if (cols !== switcherGrid.columns) {
+                     scrollAnimation.stop()
+@@ -454,7 +487,8 @@
+                 ScriptAction {
+                     script: {
+                         var cols = switcherGrid.largeColumns
+-                        if (switcherGrid.allowSmallCovers && switcherModel.itemCount > switcherGrid.largeItemCount)
++                        if (switcherGrid.allowSmallCovers
++                                && (smallCoversConfig.value || switcherModel.itemCount > switcherGrid.largeItemCount))
+                             cols = switcherGrid.smallColumns
+                         switcherGrid.columns = cols
+                         switcherGrid.coverSize = switcherGrid.columns == switcherGrid.largeColumns
+@@ -639,7 +673,8 @@
              Binding {
                  target: Lipstick.compositor.homeLayer
                  property: "statusMargin"

@@ -5,7 +5,7 @@ A Patchmanager patch for **Sailfish OS** that turns the homescreen into a minima
 | | Stock Sailfish | Ada Home |
 |---|---|---|
 | Home (after leaving an app, unlocking, the home key) | Covers of running apps | Big clock and date, up to 8 apps as plain text |
-| Second page (swipe in from the left or right edge) | Events: notifications, weather, calendar | Weather and calendar, then the covers of running apps (dimmed background) |
+| Second page (swipe in from the left or right edge) | Events: notifications, weather, calendar | Weather, Calendar and Running apps (section headers, small covers 3 per row, dimmed background) |
 | Notifications | Events page | Top menu (pull down from the top), below the toggles |
 
 Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
@@ -31,6 +31,7 @@ All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 | Layout | Apps at the bottom | Off | `bottom` |
 | | Side margin, Top margin, Bottom margin (steps of one standard spacing) | 0 | `margin_side`, `margin_top`, `margin_bottom` |
 | | Clock to apps distance (Auto = centred) | Auto | `apps_gap` |
+| | Always small covers (running apps 3 per row) | On | `small_covers` |
 | Appearance | Text size | 1.0 | `text_scale` |
 | | Bold font | Off | `bold` |
 | | Text shadow (Off / Small / Medium / Large) | Small | `shadow_level` |
