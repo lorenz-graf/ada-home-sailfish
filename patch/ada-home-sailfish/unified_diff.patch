@@ -386,10 +386,9 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,629 @@
+@@ -0,0 +1,628 @@
 +/*
-+ * ada-home-sailfish: the Home page of the text homescreen
-+ * (clock, date, app slots and settings).
++ * ada-home-sailfish: the Home page.
 + * - Big clock and date. Tap: opens the chosen app (default Clock /
 + *   Calendar). Long-press: choose that app.
 + * - 0-8 app slots as text (default 4). Empty slot shows "App"; tap it for a
@@ -1066,10 +1065,9 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,227 @@
+@@ -0,0 +1,226 @@
 +/*
-+ * ada-home-sailfish: Home settings (opened by long-pressing empty space),
-+ * with the options that make sense on Sailfish.
++ * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
 + * (the same keys HomeFavourites.qml reads).
 + * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
@@ -1174,7 +1172,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +
 +            HomeSettingsChoice {
 +                label: "Show date time"
-+                // 1 = clock and date, 0 = off, 2 = date only
++                // Stored values: 0 = off, 1 = clock and date, 2 = date only
 +                choices: ["Off", "On", "Date only"]
 +                value: dateTime.value
 +                onChosen: dateTime.value = newValue
