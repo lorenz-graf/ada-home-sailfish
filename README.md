@@ -17,7 +17,7 @@ Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 - **Long-press on empty space:** Settings. While Settings is open, the clock and date stay visible so changes show right away.
 - **Swipe left or right** (not from the screen edge): opens a configurable app (defaults: right to left = Calculator, left to right = Contacts; "Off" switches to the second page). Swipes from the edge still switch pages as before.
 - **Double tap on empty space:** turns the display off and locks, like the stock Top menu lock button (off by default).
-- The status bar clock is hidden on Home only.
+- On Home the status bar uses the Home text colour and hides its clock (Home has its own). Elsewhere it stays as it is.
 
 ## Settings
 
@@ -64,7 +64,7 @@ If "Activate enabled patches when booting" is off in Patchmanager (the default),
 
 ### Conflicts
 
-Patches that change the same homescreen files can't be active at the same time. Known ones: `status-bar-compact-cellular` (`layers/HomeLayer.qml`, `compositor.qml`) and `sfos-patch-launcher-list` (only if Ada Home ever touches the App Grid). `homescreen-cover-icons` (`switcher/SwitcherItem.qml`) works alongside.
+Two patches can change the same file as long as they change different lines. Ada Home doesn't change any status bar file, so status bar patches work alongside it. Tested together (homescreen files, both orders): `sfos-patch-status-bar`, `status-bar-compact-cellular`, `compact-cellular-indicator`, `homescreen-cover-icons`, `sfos-patch-launcher-list`.
 
 ## Undo
 
@@ -80,7 +80,8 @@ Patchmanager serves patched copies of the homescreen's QML (`/usr/share/lipstick
 - changes where navigation lands (`compositor.qml`, `layers/HomeLayer.qml`): the Events page becomes Home, the covers become the second page, and the wallpaper dimming follows the covers page
 - adds the Home page (`eventsview/HomeFavourites.qml`, `HomeAppPicker.qml`, `HomeSettings*.qml`, `HomeTextShadow.qml`) to the Events window (`eventsview/EventsWindow.qml`); the stock Events list stays for the lock screen
 - adds weather and calendar above the covers (`switcher/CoversWidgets.qml`, `switcher/Switcher.qml`)
-- adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`) and a Home-only switch for the status bar clock (`statusarea/*`)
+- adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`)
+- leaves the status bar files alone: the Home page sets the status bar's colour and hides its clock at runtime, only while Home is shown, so status bar patches still apply. If a patch rebuilds the status bar so the clock can't be found, the clock just stays visible
 
 ## Build
 

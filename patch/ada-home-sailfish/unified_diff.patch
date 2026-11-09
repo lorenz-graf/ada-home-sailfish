@@ -386,7 +386,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,583 @@
+@@ -0,0 +1,629 @@
 +/*
 + * ada-home-sailfish: the Home page of the text homescreen
 + * (clock, date, app slots and settings).
@@ -649,6 +649,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    Component.onCompleted: {
 +        _migrate()
 +        refresh()
++        _statusClock = _findClock(_statusBar)
 +    }
 +
 +    ConfigurationValue { id: slotAppsConfig; key: root._path + "slot_apps"; defaultValue: [] }
@@ -688,6 +689,51 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +
 +        isTransient: true
 +        appIcon: "icon-lock-information"
++    }
++
++    // The status bar on Home: our text colour and no clock (Home has its own).
++    // Done from here so that no status bar file is changed and status bar
++    // patches still apply. If a patch rebuilds the status bar so the clock
++    // can't be found, the clock simply stays visible.
++    readonly property Item _statusBar: !!Lipstick.compositor && !!Lipstick.compositor.homeLayer
++                                       ? Lipstick.compositor.homeLayer.statusBar : null
++    readonly property bool _homeShown: !!Lipstick.compositor && Lipstick.compositor.homeActive
++                                       && Lipstick.compositor.homeLayer.currentItem === Lipstick.compositor.eventsLayer
++    property Item _statusClock
++
++    function _findClock(item) {
++        if (!item) {
++            return null
++        }
++        // ClockItem (Sailfish.Lipstick): has updatesEnabled, time and forceUpdate()
++        if (item.hasOwnProperty("updatesEnabled") && item.hasOwnProperty("time")
++                && typeof item.forceUpdate === "function") {
++            return item
++        }
++        for (var i = 0; i < item.children.length; ++i) {
++            var found = _findClock(item.children[i])
++            if (found) {
++                return found
++            }
++        }
++        return null
++    }
++
++    on_HomeShownChanged: if (_homeShown && !_statusClock) _statusClock = _findClock(_statusBar)
++    on_StatusBarChanged: _statusClock = _findClock(_statusBar)
++
++    Binding {
++        target: root._statusBar
++        property: "color"
++        value: root.textColor
++        when: !!root._statusBar && root._homeShown
++    }
++
++    Binding {
++        target: root._statusClock
++        property: "opacity"
++        value: 0
++        when: !!root._statusClock && root._homeShown
 +    }
 +
 +    // x for an item of width w, following the alignment setting
@@ -1431,16 +1477,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
  
      switchThreshold: dragArea.drag.threshold * 1.5
      flickDuration: 200 // matching Launcher and edge layer flick speed
-@@ -160,6 +163,8 @@
-             property real opacityFromY: Math.max(0, (height + y*1.5) / height)
- 
-             backgroundVisible: true
-+            // ada-home-sailfish: Home (Events page) has its own big clock
-+            clockHidden: homescreen.currentItem === eventsLayer
-             y: -currentItem.statusOffset * (1.0 - homescreen.progress)
-                - (alternateItem ? alternateItem.statusOffset * homescreen.progress : 0)
-             updatesEnabled: Lipstick.compositor.homeActive
-@@ -181,8 +186,6 @@
+@@ -181,8 +184,6 @@
              width: homescreen.width
              height: homescreen.height
  
@@ -1449,7 +1486,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
              anchors { leftMargin: leftItem.minimizeMargin }
          },
          SwitcherLayer {
-@@ -207,6 +210,8 @@
+@@ -207,6 +208,8 @@
              leftItem: eventsLayer
              rightItem: eventsLayer
  
@@ -1458,7 +1495,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
              width: homescreen.width
              height: homescreen.height
  
-@@ -270,7 +275,7 @@
+@@ -270,7 +273,7 @@
  
                      if (layer.isCurrentItem) {
                          layer.cleanup = cleanup
@@ -1517,37 +1554,6 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
  
                          contentLeftMargin: groupHeader.textLeftMargin
                          summaryText: notification ? notification.summary : ""
-diff -ruN a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml
---- a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml
-+++ b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusArea.qml
-@@ -27,6 +27,7 @@
-     property bool updatesEnabled: true
-     property bool recentlyOnDisplay: true
-     property bool lockscreenMode
-+    property bool clockHidden // ada-home-sailfish: Home shows its own big clock
-     property color color: Theme.primaryColor
-     property int cornerPadding: {
-         // assuming the roundings are simple with x and y detached the radius amount from edges.
-@@ -115,7 +116,7 @@
-                 x: Math.max((iconBar.width - width)/2 - parent.x, 0)
-                 y: (parent.height - height) / 2
-                 sourceComponent: lockscreenMode ? lockIcon
--                                                : displayClockOnLauncher.value ? undefined // clock already shown on the launcher header
-+                                                : (displayClockOnLauncher.value || statusArea.clockHidden) ? undefined // clock already shown on the launcher header
-                                                                                : timeText
- 
- 
-diff -ruN a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml
---- a/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml
-+++ b/usr/share/lipstick-jolla-home-qt5/statusarea/StatusBar.qml
-@@ -13,6 +13,7 @@
-     property alias updatesEnabled: statusArea.updatesEnabled
-     property alias recentlyOnDisplay: statusArea.recentlyOnDisplay
-     property alias lockscreenMode: statusArea.lockscreenMode
-+    property alias clockHidden: statusArea.clockHidden // ada-home-sailfish
-     property alias color: statusArea.color
-     property alias backgroundVisible: background.visible
-     property alias shadowVisible: statusArea.shadowVisible
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
