@@ -27,6 +27,10 @@ qmllint-qt5 $changed
 PHONE=${PHONE:-defaultuser@phone}
 ./check-imports.py "$PHONE" stock $changed
 
+# Compile errors qmllint misses (e.g. "Cannot override FINAL property"):
+# create each changed file with qmlscene on the phone
+./check-compile.py "$PHONE" work $changed
+
 # a/ and b/ prefixes, no timestamps, so `patch -p1 -d /` applies it
 diff -ruN stock work \
     | sed -e 's#^--- stock/[^\t]*\t1970-01-01.*#--- /dev/null#' \

@@ -117,23 +117,284 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/
          Timer {
              id: eventsViewInactiveTimer
  
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml
+@@ -0,0 +1,251 @@
++/*
++ * ada-home-sailfish: app picker.
++ * Search field on top (ignores case, accents and separators), Enter picks
++ * the first match. Optional "Default" row (clock/date) and "Rename" button
++ * (filled home slot: the typed text becomes the slot's label).
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ * Qt 5.6: plain ES5 JavaScript only.
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import Sailfish.Lipstick 1.0
++
++Item {
++    id: picker
++
++    property var items: []              // LauncherItems, sorted
++    property string title
++    property string selectedPath        // shows a checkmark
++    property bool showDefault
++    property string defaultLabel
++    property bool defaultSelected
++    property bool renameAllowed
++    property bool autoKeyboard: true
++    property real topMargin
++
++    signal picked(string path)
++    signal defaultPicked()
++    signal renamed(string name)
++    signal cancelled()
++
++    readonly property var filteredItems: _filter(items, searchField.text)
++
++    function open() {
++        searchField.text = ""
++        list.positionViewAtBeginning()
++        if (autoKeyboard) {
++            searchField.forceActiveFocus()
++        }
++    }
++
++    function close() {
++        searchField.focus = false
++    }
++
++    // Lower case, common accents removed, separators removed
++    function _simplify(text) {
++        var s = text.toLowerCase()
++        var accents = [
++            [/[àáâãäåā]/g, "a"], [/[çćč]/g, "c"], [/[èéêëēė]/g, "e"], [/[ìíîïī]/g, "i"],
++            [/[ñń]/g, "n"], [/[òóôõöøō]/g, "o"], [/[ùúûüū]/g, "u"], [/[ýÿ]/g, "y"],
++            [/[šś]/g, "s"], [/[žźż]/g, "z"], [/ß/g, "ss"], [/[łľ]/g, "l"]
++        ]
++        for (var i = 0; i < accents.length; ++i) {
++            s = s.replace(accents[i][0], accents[i][1])
++        }
++        return s.replace(/[\s\-_+,.'`]/g, "")
++    }
++
++    function _filter(all, query) {
++        var q = query.trim().toLowerCase()
++        if (q.length === 0) {
++            return all
++        }
++        var simpleQ = _simplify(q)
++        var result = []
++        for (var i = 0; i < all.length; ++i) {
++            var title = all[i].title
++            if (title.toLowerCase().indexOf(q) !== -1
++                    || (simpleQ.length > 0 && _simplify(title).indexOf(simpleQ) !== -1)) {
++                result.push(all[i])
++            }
++        }
++        return result
++    }
++
++    Item {
++        id: header
++
++        y: picker.topMargin
++        width: parent.width
++        height: Theme.itemSizeMedium
++
++        Label {
++            anchors {
++                left: parent.left
++                leftMargin: Theme.horizontalPageMargin
++                right: cancelButton.left
++                rightMargin: Theme.paddingMedium
++                verticalCenter: parent.verticalCenter
++            }
++            text: picker.title
++            color: Theme.highlightColor
++            font.pixelSize: Theme.fontSizeLarge
++            truncationMode: TruncationMode.Fade
++        }
++
++        Button {
++            id: cancelButton
++
++            anchors {
++                right: parent.right
++                rightMargin: Theme.horizontalPageMargin
++                verticalCenter: parent.verticalCenter
++            }
++            preferredWidth: Theme.buttonWidthExtraSmall
++            text: "Cancel"
++            onClicked: picker.cancelled()
++        }
++    }
++
++    Item {
++        id: searchRow
++
++        anchors.top: header.bottom
++        width: parent.width
++        height: searchField.height
++
++        SearchField {
++            id: searchField
++
++            anchors {
++                left: parent.left
++                right: renameButton.visible ? renameButton.left : parent.right
++            }
++            placeholderText: picker.renameAllowed ? "Search, or type a new name" : "Search"
++            inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
++            EnterKey.iconSource: "image://theme/icon-m-enter-accept"
++            EnterKey.onClicked: {
++                if (picker.filteredItems.length > 0) {
++                    picker.picked(picker.filteredItems[0].filePath)
++                }
++            }
++        }
++
++        Button {
++            id: renameButton
++
++            anchors {
++                right: parent.right
++                rightMargin: Theme.horizontalPageMargin
++                verticalCenter: searchField.verticalCenter
++            }
++            visible: picker.renameAllowed && searchField.text.trim().length > 0
++            preferredWidth: Theme.buttonWidthExtraSmall
++            text: "Rename"
++            onClicked: picker.renamed(searchField.text.trim())
++        }
++    }
++
++    SilicaListView {
++        id: list
++
++        anchors {
++            top: searchRow.bottom
++            bottom: parent.bottom
++            left: parent.left
++            right: parent.right
++        }
++        clip: true
++        model: picker.filteredItems
++
++        header: BackgroundItem {
++            id: defaultItem
++
++            width: list.width
++            height: picker.showDefault ? Theme.itemSizeMedium : 0
++            visible: picker.showDefault
++            onClicked: picker.defaultPicked()
++
++            Label {
++                anchors {
++                    left: parent.left
++                    leftMargin: Theme.horizontalPageMargin + Theme.iconSizeMedium + Theme.paddingLarge
++                    right: defaultCheck.left
++                    rightMargin: Theme.paddingMedium
++                    verticalCenter: parent.verticalCenter
++                }
++                text: picker.defaultLabel
++                color: picker.defaultSelected || defaultItem.highlighted ? Theme.highlightColor : Theme.primaryColor
++                truncationMode: TruncationMode.Fade
++            }
++
++            Icon {
++                id: defaultCheck
++
++                anchors {
++                    right: parent.right
++                    rightMargin: Theme.horizontalPageMargin
++                    verticalCenter: parent.verticalCenter
++                }
++                visible: picker.defaultSelected
++                source: "image://theme/icon-m-acknowledge"
++                color: Theme.highlightColor
++            }
++        }
++
++        delegate: BackgroundItem {
++            id: entry
++
++            readonly property bool selected: picker.selectedPath.length > 0
++                                             && picker.selectedPath === modelData.filePath
++
++            width: list.width
++            height: Theme.itemSizeMedium
++            onClicked: picker.picked(modelData.filePath)
++
++            LauncherIcon {
++                id: icon
++
++                x: Theme.horizontalPageMargin
++                anchors.verticalCenter: parent.verticalCenter
++                icon: modelData.iconId
++                size: Theme.iconSizeMedium
++            }
++
++            Label {
++                anchors {
++                    left: icon.right
++                    leftMargin: Theme.paddingLarge
++                    right: check.left
++                    rightMargin: Theme.paddingMedium
++                    verticalCenter: parent.verticalCenter
++                }
++                text: modelData.title
++                color: entry.selected || entry.highlighted ? Theme.highlightColor : Theme.primaryColor
++                truncationMode: TruncationMode.Fade
++            }
++
++            Icon {
++                id: check
++
++                anchors {
++                    right: parent.right
++                    rightMargin: Theme.horizontalPageMargin
++                    verticalCenter: parent.verticalCenter
++                }
++                visible: entry.selected
++                source: "image://theme/icon-m-acknowledge"
++                color: Theme.highlightColor
++            }
++        }
++
++        ViewPlaceholder {
++            enabled: list.count === 0 && searchField.text.length > 0
++            text: "No apps found"
++        }
++
++        VerticalScrollDecorator {}
++    }
++}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,419 @@
+@@ -0,0 +1,396 @@
 +/*
-+ * ada-home-sailfish: the Home page. Big clock and date, then up to eight
-+ * favourite apps as plain text.
-+ * - Tap the clock / the date: opens the chosen app (default: Clock / Calendar)
-+ * - Long-press the clock / the date: choose that app
-+ * - Long-press empty space or a favourite: choose the favourites
++ * ada-home-sailfish: the Home page of the text homescreen
++ * (clock, date, app slots and settings).
++ * - Big clock and date. Tap: opens the chosen app (default Clock /
++ *   Calendar). Long-press: choose that app.
++ * - 0-8 app slots as text (default 4). Empty slot shows "App"; tap it for a
++ *   hint, long-press any slot to choose its app. On a filled slot, typing in
++ *   the search field and tapping "Rename" renames the slot instead.
++ * - Long-press empty space: settings.
++ * Settings live in dconf under /desktop/lipstick-jolla-home/ada_home/.
 + * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ * Qt 5.6: plain ES5 JavaScript only.
 + */
 +
 +import QtQuick 2.6
 +import Sailfish.Silica 1.0
 +import Sailfish.Lipstick 1.0
 +import Nemo.Configuration 1.0
++import Nemo.Notifications 1.0 as SystemNotifications
 +import org.nemomobile.lipstick 0.1
 +import com.jolla.lipstick 0.1
 +
@@ -143,102 +404,102 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    property real statusBarHeight
 +    property bool active: true
 +
-+    readonly property int maximumFavourites: 8
++    readonly property int maximumSlots: 8
 +    readonly property string defaultClockApp: "/usr/share/applications/jolla-clock.desktop"
 +    readonly property string defaultDateApp: "/usr/share/applications/jolla-calendar.desktop"
 +    readonly property QtObject launcherModel: Lipstick.compositor.launcherModel
++    readonly property string _path: "/desktop/lipstick-jolla-home/ada_home/"
 +
-+    // "" = no picker, "favourites" = choose favourites,
-+    // "clock" / "date" = choose the app opened by the clock / the date
-+    property string pickerMode
-+    readonly property bool singlePick: pickerMode === "clock" || pickerMode === "date"
-+    // LauncherItems of the favourites, in the chosen order
-+    property var favouriteItems: []
-+    // All apps for the picker, sorted by name
-+    property var allItems: []
++    // "" = home, "picker" = choose an app, "settings"
++    property string view
++    // What the picker chooses for: "slot", "clock" or "date"
++    property string pickerTarget
++    property int pickerSlot: -1
 +
-+    function _launcherItems() {
++    // All apps (LauncherItems) sorted by name; rebuilt when the App Grid changes
++    property var launcherItems: []
++
++    readonly property int slotCount: Math.max(0, Math.min(maximumSlots, slotCountConfig.value))
++    readonly property real textScale: Math.max(0.5, Math.min(1.5, textScaleConfig.value))
++    readonly property int textAlignment: alignmentConfig.value === 1 ? Text.AlignHCenter
++                                       : alignmentConfig.value === 2 ? Text.AlignRight
++                                       : Text.AlignLeft
++
++    function refresh() {
 +        var list = []
-+        if (!launcherModel) {
-+            return list
-+        }
-+        for (var i = 0; ; ++i) {
-+            var item = launcherModel.get(i)
-+            if (!item) {
-+                break
++        if (launcherModel) {
++            for (var i = 0; ; ++i) {
++                var item = launcherModel.get(i)
++                if (!item) {
++                    break
++                }
++                if (item.entryType === "Application" && item.title.length > 0) {
++                    list.push(item)
++                }
 +            }
-+            if (item.entryType === "Application" && item.title.length > 0) {
-+                list.push(item)
-+            }
 +        }
-+        return list
++        list.sort(function (a, b) { return a.title.localeCompare(b.title) })
++        launcherItems = list
 +    }
 +
-+    function _findItem(items, path) {
-+        for (var i = 0; i < items.length; ++i) {
-+            if (items[i].filePath === path) {
-+                return items[i]
++    function findItem(path) {
++        if (!path) {
++            return null
++        }
++        for (var i = 0; i < launcherItems.length; ++i) {
++            if (launcherItems[i].filePath === path) {
++                return launcherItems[i]
 +            }
 +        }
 +        return null
 +    }
 +
-+    function _paths() {
-+        var value = favouritesConfig.value
-+        return value ? Array.prototype.slice.call(value) : []
-+    }
-+
-+    function _targetConfig(mode) {
-+        return mode === "clock" ? clockAppConfig : dateAppConfig
-+    }
-+
-+    function _defaultApp(mode) {
-+        return mode === "clock" ? defaultClockApp : defaultDateApp
-+    }
-+
-+    function refresh() {
-+        var items = _launcherItems()
-+        var result = []
-+        var paths = _paths()
-+        for (var i = 0; i < paths.length; ++i) {
-+            var item = _findItem(items, paths[i])
-+            if (item) {
-+                result.push(item)
-+            }
++    function _array(value) {
++        var result = value ? Array.prototype.slice.call(value) : []
++        while (result.length < maximumSlots) {
++            result.push("")
 +        }
-+        favouriteItems = result
-+        if (pickerMode !== "") {
-+            items.sort(function (a, b) { return a.title.localeCompare(b.title) })
-+            allItems = items
-+        }
++        return result
 +    }
 +
-+    function isFavourite(path) {
-+        return _paths().indexOf(path) !== -1
++    // The app in slot i, or null if the slot is empty or the app is gone
++    function slotItem(i) {
++        return findItem(_array(slotAppsConfig.value)[i])
 +    }
 +
-+    function toggleFavourite(path) {
-+        var paths = _paths()
-+        var index = paths.indexOf(path)
-+        if (index !== -1) {
-+            paths.splice(index, 1)
-+        } else if (paths.length < maximumFavourites) {
-+            paths.push(path)
++    function slotLabel(i) {
++        var item = slotItem(i)
++        if (!item) {
++            return ""
 +        }
-+        favouritesConfig.value = paths
++        var name = _array(slotNamesConfig.value)[i]
++        return name.length > 0 ? name : item.title
++    }
++
++    function setSlot(i, path) {
++        var apps = _array(slotAppsConfig.value)
++        var names = _array(slotNamesConfig.value)
++        apps[i] = path
++        names[i] = "" // a new app starts with its own name
++        slotAppsConfig.value = apps
++        slotNamesConfig.value = names
++    }
++
++    function renameSlot(i, name) {
++        var names = _array(slotNamesConfig.value)
++        names[i] = name
++        slotNamesConfig.value = names
++    }
++
++    function _targetConfig(target) {
++        return target === "clock" ? clockAppConfig : dateAppConfig
 +    }
 +
 +    // The app the clock or the date opens: the chosen one if it is still
 +    // installed, otherwise the stock app
-+    function targetItem(mode) {
-+        var items = _launcherItems()
-+        var chosen = _targetConfig(mode).value
-+        return (chosen && _findItem(items, chosen)) || _findItem(items, _defaultApp(mode))
-+    }
-+
-+    function chooseTarget(path) {
-+        _targetConfig(pickerMode).value = path
-+        pickerMode = ""
++    function targetItem(target) {
++        return findItem(_targetConfig(target).value)
++                || findItem(target === "clock" ? defaultClockApp : defaultDateApp)
 +    }
 +
 +    function launch(item) {
@@ -247,38 +508,68 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        }
 +    }
 +
-+    function openPicker(mode) {
-+        pickerMode = mode
++    function openPicker(target, slot) {
 +        refresh()
-+        pickerList.positionViewAtBeginning()
++        pickerTarget = target
++        pickerSlot = slot === undefined ? -1 : slot
++        view = "picker"
++        picker.open()
 +    }
 +
-+    onPickerModeChanged: if (pickerMode === "") allItems = []
-+    onActiveChanged: if (!active) pickerMode = ""
++    function openSettings() {
++        settingsOpenedConfig.value = true
++        view = "settings"
++    }
++
++    function closeView() {
++        picker.close()
++        view = ""
++    }
++
++    function showHint(text) {
++        hint.body = text
++        hint.previewBody = text
++        hint.publish()
++    }
++
++    // Old multi-select favourites (v0.2.0) become the first slots, once
++    function _migrate() {
++        if (migratedConfig.value) {
++            return
++        }
++        var old = favouritesConfig.value ? Array.prototype.slice.call(favouritesConfig.value) : []
++        if (old.length > 0) {
++            var apps = _array([])
++            for (var i = 0; i < old.length && i < maximumSlots; ++i) {
++                apps[i] = old[i]
++            }
++            slotAppsConfig.value = apps
++            slotCountConfig.value = Math.max(4, Math.min(maximumSlots, old.length))
++        }
++        migratedConfig.value = true
++    }
++
++    onActiveChanged: if (!active) closeView()
 +    onLauncherModelChanged: refresh()
-+    Component.onCompleted: refresh()
-+
-+    ConfigurationValue {
-+        id: favouritesConfig
-+
-+        key: "/desktop/lipstick-jolla-home/ada_home/favourites"
-+        defaultValue: []
-+        onValueChanged: root.refresh()
++    Component.onCompleted: {
++        _migrate()
++        refresh()
 +    }
 +
-+    ConfigurationValue {
-+        id: clockAppConfig
-+
-+        key: "/desktop/lipstick-jolla-home/ada_home/clock_app"
-+        defaultValue: ""
-+    }
-+
-+    ConfigurationValue {
-+        id: dateAppConfig
-+
-+        key: "/desktop/lipstick-jolla-home/ada_home/date_app"
-+        defaultValue: ""
-+    }
++    ConfigurationValue { id: slotAppsConfig; key: root._path + "slot_apps"; defaultValue: [] }
++    ConfigurationValue { id: slotNamesConfig; key: root._path + "slot_names"; defaultValue: [] }
++    ConfigurationValue { id: slotCountConfig; key: root._path + "slot_count"; defaultValue: 4 }
++    ConfigurationValue { id: clockAppConfig; key: root._path + "clock_app"; defaultValue: "" }
++    ConfigurationValue { id: dateAppConfig; key: root._path + "date_app"; defaultValue: "" }
++    ConfigurationValue { id: dateTimeConfig; key: root._path + "date_time"; defaultValue: 1 }
++    ConfigurationValue { id: alignmentConfig; key: root._path + "alignment"; defaultValue: 0 }
++    ConfigurationValue { id: bottomConfig; key: root._path + "bottom"; defaultValue: false }
++    ConfigurationValue { id: textScaleConfig; key: root._path + "text_scale"; defaultValue: 1.0 }
++    ConfigurationValue { id: boldConfig; key: root._path + "bold"; defaultValue: false }
++    ConfigurationValue { id: autoKeyboardConfig; key: root._path + "auto_keyboard"; defaultValue: true }
++    ConfigurationValue { id: settingsOpenedConfig; key: root._path + "settings_opened"; defaultValue: false }
++    ConfigurationValue { id: migratedConfig; key: root._path + "migrated_favourites"; defaultValue: false }
++    ConfigurationValue { id: favouritesConfig; key: root._path + "favourites"; defaultValue: [] }
 +
 +    Connections {
 +        target: root.launcherModel
@@ -288,256 +579,418 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        onModelReset: root.refresh()
 +    }
 +
-+    // Normal view: clock, date and favourites
++    SystemNotifications.Notification {
++        id: hint
++
++        isTransient: true
++        appIcon: "icon-lock-information"
++    }
++
++    // x for an item of width w, following the alignment setting
++    function alignedX(w) {
++        if (textAlignment === Text.AlignHCenter) {
++            return (width - w) / 2
++        } else if (textAlignment === Text.AlignRight) {
++            return width - w - Theme.horizontalPageMargin + Theme.paddingMedium
++        }
++        return Theme.horizontalPageMargin - Theme.paddingMedium
++    }
++
++    // Home view
 +    MouseArea {
 +        id: homeArea
 +
 +        anchors.fill: parent
-+        visible: root.pickerMode === ""
-+        onPressAndHold: root.openPicker("favourites")
++        visible: root.view === ""
++        onPressAndHold: root.openSettings()
 +
-+        BackgroundItem {
-+            id: clockButton
++        Column {
++            id: clockColumn
 +
-+            x: Theme.horizontalPageMargin - Theme.paddingMedium
 +            y: root.statusBarHeight + Theme.paddingLarge
-+            width: clock.width + 2 * Theme.paddingMedium
-+            height: clock.height
-+            highlightedColor: "transparent"
-+            onClicked: root.launch(root.targetItem("clock"))
-+            onPressAndHold: root.openPicker("clock")
++            width: parent.width
++            visible: dateTimeConfig.value !== 0
 +
-+            ClockItem {
-+                id: clock
++            BackgroundItem {
++                id: clockButton
 +
-+                x: Theme.paddingMedium
-+                updatesEnabled: root.active
-+                color: clockButton.highlighted ? Theme.highlightColor : Theme.primaryColor
-+                font.pixelSize: Theme.fontSizeHuge * 1.5
++                x: root.alignedX(width)
++                width: clock.width + 2 * Theme.paddingMedium
++                height: visible ? clock.height : 0
++                visible: dateTimeConfig.value === 1
++                highlightedColor: "transparent"
++                onClicked: root.launch(root.targetItem("clock"))
++                onPressAndHold: root.openPicker("clock")
++
++                ClockItem {
++                    id: clock
++
++                    x: Theme.paddingMedium
++                    updatesEnabled: root.active
++                    color: clockButton.highlighted ? Theme.highlightColor : Theme.primaryColor
++                    font.pixelSize: Theme.fontSizeHuge * 1.5 * root.textScale
++                    font.bold: boldConfig.value
++                }
 +            }
-+        }
 +
-+        BackgroundItem {
-+            id: dateButton
++            BackgroundItem {
++                id: dateButton
 +
-+            anchors {
-+                left: clockButton.left
-+                top: clockButton.bottom
-+            }
-+            width: dateLabel.width + 2 * Theme.paddingMedium
-+            height: dateLabel.height + 2 * Theme.paddingSmall
-+            highlightedColor: "transparent"
-+            onClicked: root.launch(root.targetItem("date"))
-+            onPressAndHold: root.openPicker("date")
++                x: root.alignedX(width)
++                width: dateLabel.width + 2 * Theme.paddingMedium
++                height: dateLabel.height + 2 * Theme.paddingSmall
++                highlightedColor: "transparent"
++                onClicked: root.launch(root.targetItem("date"))
++                onPressAndHold: root.openPicker("date")
 +
-+            Label {
-+                id: dateLabel
++                Label {
++                    id: dateLabel
 +
-+                x: Theme.paddingMedium
-+                y: Theme.paddingSmall
-+                text: Qt.formatDate(clock.time, "dddd, d MMMM")
-+                color: dateButton.highlighted ? Theme.highlightColor : Theme.secondaryColor
-+                font.pixelSize: Theme.fontSizeMedium
++                    x: Theme.paddingMedium
++                    y: Theme.paddingSmall
++                    text: Qt.formatDate(clock.time, "ddd, d MMM")
++                    color: dateButton.highlighted ? Theme.highlightColor : Theme.secondaryColor
++                    font.pixelSize: Theme.fontSizeMedium * root.textScale
++                    font.bold: boldConfig.value
++                }
 +            }
 +        }
 +
 +        Column {
-+            id: favouritesColumn
++            id: slotsColumn
 +
-+            anchors {
-+                left: parent.left
-+                right: parent.right
-+                verticalCenter: parent.verticalCenter
-+                verticalCenterOffset: (dateButton.y + dateButton.height) / 2
-+            }
++            readonly property real contentTop: clockColumn.visible ? clockColumn.y + clockColumn.height : root.statusBarHeight
++
++            width: parent.width
++            y: bottomConfig.value
++               ? parent.height - height - Theme.itemSizeLarge
++               : Math.max(contentTop + Theme.paddingLarge, contentTop + (parent.height - contentTop - height) / 2)
 +
 +            Repeater {
-+                model: root.favouriteItems
++                model: root.slotCount
 +
 +                delegate: BackgroundItem {
-+                    id: favourite
++                    id: slot
 +
-+                    width: favouritesColumn.width
-+                    height: Theme.itemSizeMedium
++                    readonly property string label: (root.launcherItems, slotAppsConfig.value,
++                                                      slotNamesConfig.value, root.slotLabel(index))
++
++                    width: slotsColumn.width
++                    height: slotText.height + 2 * Theme.paddingMedium
 +                    highlightedColor: "transparent"
-+                    onClicked: root.launch(modelData)
-+                    onPressAndHold: root.openPicker("favourites")
++                    onClicked: {
++                        var item = root.slotItem(index)
++                        if (item) {
++                            root.launch(item)
++                        } else {
++                            root.showHint("Long press to select app")
++                        }
++                    }
++                    onPressAndHold: root.openPicker("slot", index)
 +
 +                    Label {
++                        id: slotText
++
 +                        x: Theme.horizontalPageMargin
 +                        width: parent.width - 2 * Theme.horizontalPageMargin
 +                        anchors.verticalCenter: parent.verticalCenter
-+                        text: modelData.title
-+                        color: favourite.highlighted ? Theme.highlightColor : Theme.primaryColor
-+                        font.pixelSize: Theme.fontSizeLarge
++                        horizontalAlignment: root.textAlignment
++                        text: slot.label.length > 0 ? slot.label : "App"
++                        color: slot.highlighted ? Theme.highlightColor
++                             : slot.label.length > 0 ? Theme.primaryColor
++                             : Theme.rgba(Theme.secondaryColor, Theme.opacityLow)
++                        font.pixelSize: Theme.fontSizeLarge * root.textScale
++                        font.bold: boldConfig.value
 +                        truncationMode: TruncationMode.Fade
 +                    }
 +                }
 +            }
++        }
 +
-+            Label {
-+                visible: root.favouriteItems.length === 0
-+                x: Theme.horizontalPageMargin
-+                width: parent.width - 2 * Theme.horizontalPageMargin
-+                wrapMode: Text.Wrap
-+                text: "Long-press to choose your favourite apps"
-+                color: Theme.secondaryHighlightColor
-+                font.pixelSize: Theme.fontSizeMedium
++        // First-run tip, until Settings has been opened once
++        Label {
++            visible: !settingsOpenedConfig.value
++            anchors {
++                bottom: parent.bottom
++                bottomMargin: Theme.paddingLarge * 2
++                horizontalCenter: parent.horizontalCenter
 +            }
++            width: parent.width - 2 * Theme.horizontalPageMargin
++            horizontalAlignment: Text.AlignHCenter
++            wrapMode: Text.Wrap
++            text: "Long press anywhere for settings"
++            color: Theme.secondaryColor
++            font.pixelSize: Theme.fontSizeSmall
 +        }
 +    }
 +
-+    // Picker: all apps. Favourites: tap to add or remove.
-+    // Clock / date: tap one app (or "Default") to choose it.
-+    Item {
++    HomeAppPicker {
++        id: picker
++
 +        anchors.fill: parent
-+        visible: root.pickerMode !== ""
++        visible: root.view === "picker"
++        topMargin: root.statusBarHeight
++        items: root.launcherItems
++        autoKeyboard: autoKeyboardConfig.value
++        title: root.pickerTarget === "clock" ? "App for the clock"
++             : root.pickerTarget === "date" ? "App for the date"
++             : "Select an app"
++        showDefault: root.pickerTarget === "clock" || root.pickerTarget === "date"
++        defaultLabel: root.pickerTarget === "clock" ? "Default (Clock)" : "Default (Calendar)"
++        defaultSelected: showDefault && !root._targetConfig(root.pickerTarget).value
++        selectedPath: root.pickerTarget === "slot"
++                      ? (slotAppsConfig.value, root._array(slotAppsConfig.value)[root.pickerSlot] || "")
++                      : (root._targetConfig(root.pickerTarget).value || "")
++        // Rename only for a slot that already has an app
++        renameAllowed: root.pickerTarget === "slot" && root.pickerSlot >= 0
++                       && (slotAppsConfig.value, root.slotItem(root.pickerSlot) !== null)
 +
-+        Item {
-+            id: pickerHeader
-+
-+            y: root.statusBarHeight
-+            width: parent.width
-+            height: Theme.itemSizeMedium
-+
-+            Label {
-+                anchors {
-+                    left: parent.left
-+                    leftMargin: Theme.horizontalPageMargin
-+                    right: doneButton.left
-+                    verticalCenter: parent.verticalCenter
-+                }
-+                text: root.pickerMode === "clock" ? "App for the clock"
-+                    : root.pickerMode === "date" ? "App for the date"
-+                    : "Favourites " + root.favouriteItems.length + "/" + root.maximumFavourites
-+                color: Theme.highlightColor
-+                font.pixelSize: Theme.fontSizeLarge
-+                truncationMode: TruncationMode.Fade
++        onPicked: {
++            if (root.pickerTarget === "slot") {
++                root.setSlot(root.pickerSlot, path)
++            } else {
++                root._targetConfig(root.pickerTarget).value = path
 +            }
++            root.closeView()
++        }
++        onDefaultPicked: {
++            root._targetConfig(root.pickerTarget).value = ""
++            root.closeView()
++        }
++        onRenamed: {
++            root.renameSlot(root.pickerSlot, name)
++            root.closeView()
++        }
++        // Cancel keeps the previous choice
++        onCancelled: root.closeView()
++    }
 +
-+            Button {
-+                id: doneButton
++    HomeSettings {
++        anchors.fill: parent
++        visible: root.view === "settings"
++        topMargin: root.statusBarHeight
++        onDone: root.closeView()
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
+@@ -0,0 +1,217 @@
++/*
++ * ada-home-sailfish: Home settings (opened by long-pressing empty space),
++ * with the options that make sense on Sailfish.
++ * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
++ * (the same keys HomeFavourites.qml reads).
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
 +
-+                anchors {
-+                    right: parent.right
-+                    rightMargin: Theme.horizontalPageMargin
-+                    verticalCenter: parent.verticalCenter
-+                }
-+                preferredWidth: Theme.buttonWidthExtraSmall
-+                // Cancelling a clock/date choice keeps the previous app
-+                text: root.singlePick ? "Cancel" : "Done"
-+                onClicked: root.pickerMode = ""
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import Nemo.Configuration 1.0
++
++Item {
++    id: settings
++
++    property real topMargin
++
++    signal done()
++
++    readonly property string _path: "/desktop/lipstick-jolla-home/ada_home/"
++
++    ConfigurationValue { id: slotCount; key: settings._path + "slot_count"; defaultValue: 4 }
++    ConfigurationValue { id: dateTime; key: settings._path + "date_time"; defaultValue: 1 }
++    ConfigurationValue { id: alignment; key: settings._path + "alignment"; defaultValue: 0 }
++    ConfigurationValue { id: bottom; key: settings._path + "bottom"; defaultValue: false }
++    ConfigurationValue { id: textScale; key: settings._path + "text_scale"; defaultValue: 1.0 }
++    ConfigurationValue { id: bold; key: settings._path + "bold"; defaultValue: false }
++    ConfigurationValue { id: autoKeyboard; key: settings._path + "auto_keyboard"; defaultValue: true }
++
++    Item {
++        id: header
++
++        y: settings.topMargin
++        width: parent.width
++        height: Theme.itemSizeMedium
++
++        Label {
++            anchors {
++                left: parent.left
++                leftMargin: Theme.horizontalPageMargin
++                verticalCenter: parent.verticalCenter
 +            }
++            text: "Settings"
++            color: Theme.highlightColor
++            font.pixelSize: Theme.fontSizeLarge
 +        }
 +
-+        SilicaListView {
-+            id: pickerList
-+
++        Button {
 +            anchors {
-+                top: pickerHeader.bottom
-+                bottom: parent.bottom
-+                left: parent.left
 +                right: parent.right
++                rightMargin: Theme.horizontalPageMargin
++                verticalCenter: parent.verticalCenter
 +            }
-+            clip: true
-+            model: root.allItems
++            preferredWidth: Theme.buttonWidthExtraSmall
++            text: "Done"
++            onClicked: settings.done()
++        }
++    }
 +
-+            header: BackgroundItem {
-+                id: defaultItem
++    SilicaFlickable {
++        anchors {
++            top: header.bottom
++            bottom: parent.bottom
++            left: parent.left
++            right: parent.right
++        }
++        clip: true
++        contentHeight: column.height + Theme.paddingLarge
 +
-+                readonly property bool selected: root.singlePick
-+                                                 && !root._targetConfig(root.pickerMode).value
++        Column {
++            id: column
 +
-+                width: pickerList.width
-+                height: root.singlePick ? Theme.itemSizeMedium : 0
-+                visible: root.singlePick
-+                onClicked: root.chooseTarget("")
++            width: parent.width
++
++            SectionHeader { text: "Home screen" }
++
++            // Number stepper: label, minus, value, plus
++            Item {
++                width: parent.width
++                height: Theme.itemSizeSmall
 +
 +                Label {
-+                    anchors {
-+                        left: parent.left
-+                        leftMargin: Theme.horizontalPageMargin + Theme.iconSizeMedium + Theme.paddingLarge
-+                        right: defaultCheck.left
-+                        rightMargin: Theme.paddingMedium
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    text: root.pickerMode === "clock" ? "Default (Clock)" : "Default (Calendar)"
-+                    color: defaultItem.selected || defaultItem.highlighted ? Theme.highlightColor : Theme.primaryColor
-+                    truncationMode: TruncationMode.Fade
-+                }
-+
-+                Icon {
-+                    id: defaultCheck
-+
-+                    anchors {
-+                        right: parent.right
-+                        rightMargin: Theme.horizontalPageMargin
-+                        verticalCenter: parent.verticalCenter
-+                    }
-+                    visible: defaultItem.selected
-+                    source: "image://theme/icon-m-acknowledge"
-+                    color: Theme.highlightColor
-+                }
-+            }
-+
-+            delegate: BackgroundItem {
-+                id: pickerItem
-+
-+                readonly property bool selected: root.singlePick
-+                                                 ? root._targetConfig(root.pickerMode).value === modelData.filePath
-+                                                 : (root.favouriteItems, root.isFavourite(modelData.filePath))
-+
-+                width: pickerList.width
-+                height: Theme.itemSizeMedium
-+                enabled: root.singlePick || selected || root.favouriteItems.length < root.maximumFavourites
-+                onClicked: {
-+                    if (root.singlePick) {
-+                        root.chooseTarget(modelData.filePath)
-+                    } else {
-+                        root.toggleFavourite(modelData.filePath)
-+                    }
-+                }
-+
-+                LauncherIcon {
-+                    id: icon
-+
 +                    x: Theme.horizontalPageMargin
 +                    anchors.verticalCenter: parent.verticalCenter
-+                    icon: modelData.iconId
-+                    size: Theme.iconSizeMedium
-+                    opacity: pickerItem.enabled ? 1.0 : Theme.opacityLow
++                    text: "Apps on home screen"
 +                }
-+
-+                Label {
++                Row {
 +                    anchors {
-+                        left: icon.right
-+                        leftMargin: Theme.paddingLarge
-+                        right: check.left
-+                        rightMargin: Theme.paddingMedium
++                        right: parent.right
++                        rightMargin: Theme.horizontalPageMargin - Theme.paddingMedium
 +                        verticalCenter: parent.verticalCenter
 +                    }
-+                    text: modelData.title
-+                    color: pickerItem.selected || pickerItem.highlighted ? Theme.highlightColor : Theme.primaryColor
-+                    opacity: pickerItem.enabled ? 1.0 : Theme.opacityLow
-+                    truncationMode: TruncationMode.Fade
++                    IconButton {
++                        icon.source: "image://theme/icon-m-remove"
++                        enabled: slotCount.value > 0
++                        onClicked: slotCount.value = Math.max(0, slotCount.value - 1)
++                    }
++                    Label {
++                        width: Theme.itemSizeSmall
++                        anchors.verticalCenter: parent.verticalCenter
++                        horizontalAlignment: Text.AlignHCenter
++                        text: slotCount.value
++                        color: Theme.highlightColor
++                    }
++                    IconButton {
++                        icon.source: "image://theme/icon-m-add"
++                        enabled: slotCount.value < 8
++                        onClicked: slotCount.value = Math.min(8, slotCount.value + 1)
++                    }
 +                }
++            }
 +
-+                Icon {
-+                    id: check
++            // Tap to cycle through the choices
++            BackgroundItem {
++                width: parent.width
++                onClicked: dateTime.value = (dateTime.value + 1) % 3
 +
++                Label {
++                    x: Theme.horizontalPageMargin
++                    anchors.verticalCenter: parent.verticalCenter
++                    text: "Show date time"
++                }
++                Label {
 +                    anchors {
 +                        right: parent.right
 +                        rightMargin: Theme.horizontalPageMargin
 +                        verticalCenter: parent.verticalCenter
 +                    }
-+                    visible: pickerItem.selected
-+                    source: "image://theme/icon-m-acknowledge"
++                    // 1 = clock and date, 0 = off, 2 = date only
++                    text: dateTime.value === 0 ? "Off" : dateTime.value === 2 ? "Date only" : "On"
 +                    color: Theme.highlightColor
 +                }
 +            }
 +
-+            VerticalScrollDecorator {}
++            BackgroundItem {
++                width: parent.width
++                onClicked: alignment.value = (alignment.value + 1) % 3
++
++                Label {
++                    x: Theme.horizontalPageMargin
++                    anchors.verticalCenter: parent.verticalCenter
++                    text: "App alignment"
++                }
++                Label {
++                    anchors {
++                        right: parent.right
++                        rightMargin: Theme.horizontalPageMargin
++                        verticalCenter: parent.verticalCenter
++                    }
++                    text: alignment.value === 1 ? "Center" : alignment.value === 2 ? "Right" : "Left"
++                    color: Theme.highlightColor
++                }
++            }
++
++            TextSwitch {
++                text: "Apps at the bottom"
++                automaticCheck: false
++                checked: bottom.value
++                onClicked: bottom.value = !bottom.value
++            }
++
++            SectionHeader { text: "Appearance" }
++
++            Item {
++                width: parent.width
++                height: Theme.itemSizeSmall
++
++                Label {
++                    x: Theme.horizontalPageMargin
++                    anchors.verticalCenter: parent.verticalCenter
++                    text: "Text size"
++                }
++                Row {
++                    anchors {
++                        right: parent.right
++                        rightMargin: Theme.horizontalPageMargin - Theme.paddingMedium
++                        verticalCenter: parent.verticalCenter
++                    }
++                    IconButton {
++                        icon.source: "image://theme/icon-m-remove"
++                        enabled: textScale.value > 0.55
++                        onClicked: textScale.value = Math.max(0.5, Math.round((textScale.value - 0.1) * 10) / 10)
++                    }
++                    Label {
++                        width: Theme.itemSizeSmall
++                        anchors.verticalCenter: parent.verticalCenter
++                        horizontalAlignment: Text.AlignHCenter
++                        text: Number(textScale.value).toFixed(1)
++                        color: Theme.highlightColor
++                    }
++                    IconButton {
++                        icon.source: "image://theme/icon-m-add"
++                        enabled: textScale.value < 1.45
++                        onClicked: textScale.value = Math.min(1.5, Math.round((textScale.value + 0.1) * 10) / 10)
++                    }
++                }
++            }
++
++            TextSwitch {
++                text: "Bold font"
++                automaticCheck: false
++                checked: bold.value
++                onClicked: bold.value = !bold.value
++            }
++
++            TextSwitch {
++                text: "Auto show keyboard"
++                description: "Open the keyboard when the app list opens"
++                automaticCheck: false
++                checked: autoKeyboard.value
++                onClicked: autoKeyboard.value = !autoKeyboard.value
++            }
 +        }
++
++        VerticalScrollDecorator {}
 +    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml
