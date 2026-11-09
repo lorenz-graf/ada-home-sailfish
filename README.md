@@ -17,7 +17,7 @@ Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 - **Long-press on empty space:** Settings. While Settings is open, the clock and date stay visible so changes show right away.
 - **Swipe left or right** (not from the screen edge): opens a configurable app (defaults: right to left = Calculator, left to right = Contacts; "Off" switches to the second page). Swipes from the edge still switch pages as before.
 - **Double tap on empty space:** turns the display off and locks, like the stock Top menu lock button (off by default).
-- On Home the status bar uses the Home text colour and hides its clock (Home has its own). Elsewhere it stays as it is.
+- On Home the status bar uses the Home text colour and hides its clock (Home has its own). Optionally it stays hidden until you touch Home. Elsewhere it stays as it is.
 
 ## Settings
 
@@ -36,6 +36,7 @@ All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 | | Bold font | Off | `bold` |
 | | Text shadow (Off / Small / Medium / Large) | Small | `shadow_level` |
 | | Text color (Ambience / Ambience highlight / White / Black) | Ambience | `text_color` |
+| | Hide status bar (on Home; touching Home shows it for a moment) | Off | `hide_status_bar` |
 | | Auto show keyboard (in the app list) | On | `auto_keyboard` |
 | Gestures | Swipe left app, Swipe right app | Calculator, Contacts | `swipe_left_app`, `swipe_right_app` |
 | | Double tap to lock | Off | `double_tap_lock` |

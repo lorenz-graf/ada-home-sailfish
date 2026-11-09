@@ -386,7 +386,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,628 @@
+@@ -0,0 +1,678 @@
 +/*
 + * ada-home-sailfish: the Home page.
 + * - Big clock and date. Tap: opens the chosen app (default Clock /
@@ -667,6 +667,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: swipeLeftConfig; key: root._path + "swipe_left_app"; defaultValue: root.defaultSwipeLeftApp }
 +    ConfigurationValue { id: swipeRightConfig; key: root._path + "swipe_right_app"; defaultValue: root.defaultSwipeRightApp }
 +    ConfigurationValue { id: doubleTapLockConfig; key: root._path + "double_tap_lock"; defaultValue: false }
++    ConfigurationValue { id: hideStatusBarConfig; key: root._path + "hide_status_bar"; defaultValue: false }
 +    ConfigurationValue { id: appsGapConfig; key: root._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTopConfig; key: root._path + "margin_top"; defaultValue: 0 }
@@ -718,7 +719,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        return null
 +    }
 +
-+    on_HomeShownChanged: if (_homeShown && !_statusClock) _statusClock = _findClock(_statusBar)
++    on_HomeShownChanged: {
++        if (_homeShown && !_statusClock) {
++            _statusClock = _findClock(_statusBar)
++        }
++        if (!_homeShown) {
++            _statusRevealed = false
++        }
++    }
 +    on_StatusBarChanged: _statusClock = _findClock(_statusBar)
 +
 +    Binding {
@@ -733,6 +741,41 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        property: "opacity"
 +        value: 0
 +        when: !!root._statusClock && root._homeShown
++    }
++
++    // Settings: Hide status bar. On Home the status bar is invisible and
++    // fades in while Home is touched, then out again about 3 s after release.
++    // Only its opacity is changed, so status bar patches keep control of the rest.
++    property bool _statusRevealed
++    property real _statusBarOpacity: _statusRevealed ? 1 : 0
++    // FadeAnimation only animates "opacity" unless told otherwise, so be explicit
++    Behavior on _statusBarOpacity {
++        NumberAnimation {
++            duration: root._statusRevealed ? 250 : 600
++            easing.type: Easing.InOutQuad
++        }
++    }
++
++    function revealStatusBar(keep) {
++        _statusRevealed = true
++        if (keep) {
++            statusHideTimer.stop()
++        } else {
++            statusHideTimer.restart()
++        }
++    }
++
++    Timer {
++        id: statusHideTimer
++        interval: 3000
++        onTriggered: root._statusRevealed = false
++    }
++
++    Binding {
++        target: root._statusBar
++        property: "opacity"
++        value: root._statusBarOpacity
++        when: !!root._statusBar && root._homeShown && hideStatusBarConfig.value
 +    }
 +
 +    // x for an item of width w, following the alignment setting
@@ -790,6 +833,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        enabled: root.view === ""
 +
 +        onPressed: {
++            root.revealStatusBar(true)
 +            root.swipeBegin(homeArea, mouse)
 +            moved = false
 +            pressedTarget = targetAt(mouse.x, mouse.y)
@@ -800,8 +844,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +                moved = true
 +            }
 +        }
-+        onReleased: root.swipeEnd(homeArea, mouse)
-+        onCanceled: moved = true
++        onReleased: {
++            root.revealStatusBar(false)
++            root.swipeEnd(homeArea, mouse)
++        }
++        onCanceled: {
++            moved = true
++            root.revealStatusBar(false)
++        }
 +
 +        onClicked: {
 +            if (root.swiped || moved) {
@@ -1065,7 +1115,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,234 @@
+@@ -0,0 +1,242 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1100,6 +1150,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: shadowLevel; key: settings._path + "shadow_level"; defaultValue: 1 }
 +    ConfigurationValue { id: textColor; key: settings._path + "text_color"; defaultValue: 0 }
 +    ConfigurationValue { id: doubleTapLock; key: settings._path + "double_tap_lock"; defaultValue: false }
++    ConfigurationValue { id: hideStatusBar; key: settings._path + "hide_status_bar"; defaultValue: false }
 +    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
@@ -1265,6 +1316,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                choices: ["Ambience", "Ambience highlight", "White", "Black"]
 +                value: textColor.value
 +                onChosen: textColor.value = newValue
++            }
++
++            HomeSettingsSwitch {
++                label: "Hide status bar"
++                description: "On Home it shows up for a moment when you touch the screen"
++                checked: hideStatusBar.value
++                onToggled: hideStatusBar.value = !hideStatusBar.value
 +            }
 +
 +            HomeSettingsSwitch {
