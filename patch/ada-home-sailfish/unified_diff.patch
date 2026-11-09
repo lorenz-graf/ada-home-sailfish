@@ -1,0 +1,189 @@
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
+--- a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
++++ b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
+@@ -23,6 +23,9 @@
+ 
+     property bool viewVisible: true
+ 
++    // ada-home-sailfish: swipe items away without long-press first
++    property bool directSwipe
++
+     // This is not the flickable that NotificationStandardGroupItem's context menus should reposition
+     property bool __silica_hidden_flickable
+ 
+@@ -103,6 +106,7 @@
+ 
+         enabled: notificationList.enabled
+         viewVisible: notificationList.viewVisible
++        directSwipe: notificationList.directSwipe
+         removeAllInProgress: notificationList._removeAllInProgress
+         onExpanded: notificationList.expanded(delegate)
+ 
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupItem.qml b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupItem.qml
+--- a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupItem.qml
++++ b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandardGroupItem.qml
+@@ -18,6 +18,8 @@
+ 
+     property alias notificationListView: memberList
+     property bool viewVisible: true
++    // ada-home-sailfish: swipe items away without long-press first
++    property bool directSwipe
+ 
+     property bool removeAllInProgress
+     readonly property bool hasRemovableMember: !!modelData && modelData.hasUserRemovableMembers
+@@ -45,7 +47,7 @@
+     property int _expansionIncrease: 15
+ 
+     implicitHeight: column.height
+-    draggable: groupHeader.draggable
++    draggable: groupHeader.draggable || (directSwipe && groupHeader.userRemovable)
+ 
+     Column {
+         id: column
+@@ -132,6 +134,7 @@
+ 
+                         notification: modelData
+                         userRemovable: modelData.userRemovable
++                        draggable: (housekeeping || root.directSwipe) && userRemovable
+ 
+                         contentLeftMargin: groupHeader.textLeftMargin
+                         summaryText: notification ? notification.summary : ""
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
+@@ -0,0 +1,120 @@
++/*
++ * ada-home-sailfish: notification list inside the Top menu.
++ * Reuses the stock notification components from ../notifications.
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import org.nemomobile.lipstick 0.1
++import org.nemomobile.devicelock 1.0
++import com.jolla.lipstick 0.1
++import "../notifications" as Notifications
++
++Column {
++    id: root
++
++    readonly property bool menuExposed: Lipstick.compositor.topMenuLayer.exposed
++    // Only show notification content when the device is unlocked
++    // (the Top menu can also be opened on the lock screen).
++    readonly property bool allowed: Desktop.deviceLockState === DeviceLock.Unlocked
++    readonly property bool hasNotifications: notificationList.count > 0
++
++    width: parent ? parent.width : 0
++    visible: allowed
++
++    onMenuExposedChanged: {
++        if (!menuExposed) {
++            // Same as the Events view does when it is left
++            var ids = []
++            for (var id in notificationList.displayedIds) {
++                ids.push(id)
++            }
++            if (ids.length > 0) {
++                notificationModel.markAsDisplayed(ids)
++            }
++            notificationList.displayedIds = {}
++            Lipstick.compositor.eventsLayer.setHousekeeping(false)
++        }
++    }
++
++    JollaNotificationGroupModel {
++        id: notificationModel
++
++        function markAsDisplayed(ids) {
++            sourceModel.markAsDisplayed(ids)
++        }
++
++        groupProperty: "disambiguatedAppName"
++        sourceModel: JollaNotificationListModel {}
++    }
++
++    Item {
++        id: header
++
++        width: parent.width
++        height: Theme.itemSizeSmall
++
++        Label {
++            anchors {
++                left: parent.left
++                leftMargin: Theme.horizontalPageMargin
++                right: clearButton.left
++                verticalCenter: parent.verticalCenter
++            }
++            text: "Notifications"
++            color: Theme.highlightColor
++            font.pixelSize: Theme.fontSizeSmall
++            truncationMode: TruncationMode.Fade
++        }
++
++        Button {
++            id: clearButton
++
++            anchors {
++                right: parent.right
++                rightMargin: Theme.horizontalPageMargin
++                verticalCenter: parent.verticalCenter
++            }
++            visible: notificationList.hasRemovableNotifications
++            preferredWidth: Theme.buttonWidthExtraSmall
++            text: "Clear all"
++            onClicked: notificationList.removeAll()
++        }
++    }
++
++    Label {
++        x: Theme.horizontalPageMargin
++        width: parent.width - 2 * Theme.horizontalPageMargin
++        height: visible ? implicitHeight + Theme.paddingLarge : 0
++        visible: !root.hasNotifications
++        text: "No notifications"
++        color: Theme.secondaryHighlightColor
++        font.pixelSize: Theme.fontSizeSmall
++    }
++
++    Item {
++        width: parent.width
++        height: notificationList.contentHeight
++
++        Notifications.NotificationListView {
++            id: notificationList
++
++            property var displayedIds: ({})
++
++            onDisplayed: displayedIds[id] = true
++
++            // Same trick as the Events view: a tall view is fully populated
++            // without binding height to contentHeight.
++            height: Screen.height * 1000
++            model: notificationModel.populated ? notificationModel : null
++            viewVisible: root.menuExposed && root.allowed
++            directSwipe: true
++        }
++    }
++
++    Item {
++        width: 1
++        height: Theme.paddingLarge
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml
+--- a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml
++++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml
+@@ -464,6 +464,11 @@
+                 }
+             }
+         }
++
++        // ada-home-sailfish: notifications below the shortcuts
++        TopMenuNotifications {
++            width: parent.width
++        }
+     }
+ 
+     Connections {

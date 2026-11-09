@@ -1,0 +1,9 @@
+{
+    "name": "ada-home-sailfish",
+    "display_name": "Ada Home",
+    "description": "Reworked homescreen layout. Step 1: notifications in the Top menu, swipe to dismiss.",
+    "category": "homescreen",
+    "author": "ada",
+    "version": "0.1.1",
+    "compatible": ["5.2.0.22"]
+}
