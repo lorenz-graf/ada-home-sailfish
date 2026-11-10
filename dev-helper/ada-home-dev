@@ -6,7 +6,8 @@
 #   setup            (root) install this helper and its two systemd units
 #   enable [hours]   (root) allow defaultuser to start the units for 1-24 h
 #                    (default 4) via a polkit rule with an expiry time
-#   disable          (root) remove the polkit rule now, stop the log
+#   disable          (root) remove the polkit rule now, stop the log and
+#                    delete the recording
 #   uninstall        (root) remove everything this helper installed
 #   install          (run by ada-home-dev-install.service) copy the staged
 #                    patch from ~defaultuser/ada-home-sailfish/ into
@@ -100,6 +101,7 @@ EOF
 disable)
     rm -f "$RULE"
     systemctl stop ada-home-dev-log.service 2>/dev/null || true
+    rm -f "$RUNDIR/journal.txt"
     echo "ada-home-dev: disabled"
     ;;
 

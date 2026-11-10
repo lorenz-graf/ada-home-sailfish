@@ -7,3 +7,6 @@ UMask=0022
 ExecStartPre=/bin/mkdir -p -m 755 /run/ada-home-dev
 # Readable by defaultuser while it runs: the whole journal, not only lipstick
 ExecStart=/bin/sh -c 'exec /usr/bin/journalctl -f --no-pager -o short-precise > /run/ada-home-dev/journal.txt'
+# /run is RAM and the journal grows ~25 MB/h (kernel binder noise): stop after 3 h
+# (each deploy restarts it). The file stays readable until the next start or "disable".
+RuntimeMaxSec=3h

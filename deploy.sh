@@ -4,6 +4,8 @@
 # "enable" gives a time-limited polkit rule). Steps:
 #   build + checks -> unapply -> stage -> dry run -> install (helper unit)
 #   -> fresh journal recording -> apply -> restart lipstick -> check
+# The recording (/run/ada-home-dev/journal.txt) keeps running for the test on
+# the phone and stops by itself after 3 h (RuntimeMaxSec in the log unit).
 # Restarting lipstick closes all open apps.
 set -eu
 cd "$(dirname "$0")"
