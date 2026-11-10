@@ -67,16 +67,30 @@ Chosen apps are stored as `.desktop` file paths: `slot_apps`, `slot_names` (rena
 
 ## Install
 
-Ada Home is a local Patchmanager patch (not in the Patchmanager web catalog). Patchmanager must be installed.
+Ada Home is a Patchmanager patch packaged as an RPM (it's not in the Patchmanager web catalog). Patchmanager 3 must be installed.
+
+1. Download `ada-home-sailfish-<version>-<release>.noarch.rpm` from the [releases](https://github.com/lorenz-graf/ada-home-sailfish/releases) on the phone and tap it in the file manager to install it (with developer mode on), or install it as root:
+   ```
+   devel-su pkcon install-local ada-home-sailfish-<version>-<release>.noarch.rpm
+   ```
+2. Settings → Patchmanager: activate **Ada Home**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
+
+**Updating:** install the new RPM the same way. It deactivates Ada Home before replacing the files, so activate it again afterwards (step 2). Your settings stay.
+
+If "Activate enabled patches when booting" is off in Patchmanager (the default), the patch has to be activated again after every reboot.
+
+<details>
+<summary>Without the RPM (copy the patch by hand)</summary>
 
 1. Copy `patch/ada-home-sailfish/` to the phone, e.g. to `~/ada-home-sailfish/`.
 2. Install it as root:
    ```
    devel-su sh -c 'cp -r ~defaultuser/ada-home-sailfish /usr/share/patchmanager/patches/ && chown -R root:root /usr/share/patchmanager/patches/ada-home-sailfish'
    ```
-3. Settings → Patchmanager: activate **Ada Home**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
+3. Activate it as in step 2 above.
 
-If "Activate enabled patches when booting" is off in Patchmanager (the default), the patch has to be activated again after every reboot.
+Remove it with `devel-su rm -rf /usr/share/patchmanager/patches/ada-home-sailfish` after deactivating it. Installing the RPM later replaces a hand-copied patch (it deactivates it first).
+</details>
 
 ### Other patches
 
@@ -123,7 +137,7 @@ cd / && patch -p1 --dry-run -N < /usr/share/patchmanager/patches/<patch>/unified
 
 - **Deactivate:** Settings → Patchmanager → Ada Home → deactivate, then **Restart preloaded services**. The homescreen is stock again.
 - **If the homescreen is broken:** hold the power key to restart. With "Activate enabled patches when booting" off, the phone comes up with the stock homescreen. Patchmanager also turns all patches off by itself when lipstick reports a QML type error or its service fails.
-- **Remove the patch:** deactivate it, then `devel-su rm -rf /usr/share/patchmanager/patches/ada-home-sailfish`
+- **Uninstall:** Settings → Patchmanager → long-press **Ada Home** → **Deactivate**, then long-press → **Remove** (Patchmanager removes the RPM; no password needed). Or as root: `devel-su pkcon remove ada-home-sailfish` (deactivates the patch first). The homescreen is stock after the next **Restart preloaded services** or reboot.
 - **Remove the settings:** `dconf reset -f /desktop/lipstick-jolla-home/ada_home/`
 
 ## How it works
@@ -145,7 +159,10 @@ The patch is built from the difference between the stock files and the changed f
 
 ```
 ./build-patch.sh   # -> patch/ada-home-sailfish/{patch.json,unified_diff.patch}
+./build-rpm.sh     # -> build/ada-home-sailfish-<version>-<release>.noarch.rpm
 ```
+
+The version is `VERSION=` in `build-patch.sh` (written to `patch.json`), the RPM release is `Release:` in `rpm/ada-home-sailfish.spec`. `build-rpm.sh` packages the patch as it is in `patch/` and needs `rpmbuild` (Arch: `pacman -S rpm-tools`); it writes an rpm v4 package with a gzip payload, since Sailfish has rpm 4.16. The package's scriptlets deactivate the patch (`patchmanager -u`) before an update replaces its files and before an uninstall removes them, because Patchmanager reverses a patch with its diff.
 
 Before writing the patch it runs three checks, the last two over SSH on the phone. The phone's address comes from `PHONE=user@host` or from a file `phone.conf` (one line, git-ignored):
 
@@ -169,7 +186,7 @@ After that, once per session (the window expires by itself; `deploy.sh` checks i
 devel-su /usr/libexec/ada-home-dev/ada-home-dev enable 4
 ```
 
-`enable <hours>` (1–24) writes a polkit rule with an expiry time that lets `defaultuser`, also over SSH, start exactly two units: one copies the staged patch from `~/ada-home-sailfish/` into Patchmanager (it refuses any patch that touches files outside `/usr/share/lipstick-jolla-home-qt5/` or uses `..` in a path), the other records the journal to `/run/ada-home-dev/journal.txt`. `disable` removes the rule early, `uninstall` removes the helper completely.
+`enable <hours>` (1–24) writes a polkit rule with an expiry time that lets `defaultuser`, also over SSH, start exactly two units: one copies the staged patch from `~/ada-home-sailfish/` into Patchmanager (it refuses any patch that touches files outside `/usr/share/lipstick-jolla-home-qt5/` or uses `..` in a path), the other records the journal to `/run/ada-home-dev/journal.txt` (stops by itself after 3 hours, since `/run` is in RAM). `disable` removes the rule early, `uninstall` removes the helper completely.
 
 ## License
 

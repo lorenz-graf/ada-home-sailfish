@@ -4,6 +4,6 @@
     "description": "Minimal text homescreen: big clock, apps as text and swipe apps on Home, notifications in the Top menu, weather, calendar and running apps on the second page.",
     "category": "homescreen",
     "author": "lorenz-graf",
-    "version": "0.2.0",
+    "version": "0.3.0",
     "compatible": ["5.2.0.22"]
 }

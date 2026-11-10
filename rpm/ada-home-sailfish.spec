@@ -5,7 +5,7 @@
 
 Name:       ada-home-sailfish
 Version:    %{ah_version}
-Release:    2
+Release:    1
 Summary:    Minimal text homescreen (Patchmanager patch)
 License:    BSD-3-Clause
 URL:        https://github.com/lorenz-graf/ada-home-sailfish
