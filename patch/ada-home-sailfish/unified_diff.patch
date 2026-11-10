@@ -1,17 +1,36 @@
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstick-jolla-home-qt5/compositor.qml
 --- a/usr/share/lipstick-jolla-home-qt5/compositor.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/compositor.qml
-@@ -300,7 +300,8 @@
+@@ -275,6 +275,11 @@
+     signal peekGestureReset()
+     signal minimizeLaunchingWindows
+ 
++    // ada-home-sailfish: true while goToSwitcher() runs. It lands on the Events page now,
++    // and making Events current minimizes launching windows (setCurrentWindow), which
++    // cancelled App Grid launches: the app started but its window was never shown.
++    property bool _adaGoingToSwitcher
++
+     onVisibleChanged: {
+         if (visible && !incomingAlarmTimer.running) {
+             _resetIncomingAlarm()
+@@ -300,7 +305,15 @@
          }
      }
  
 -    function goToSwitcher(minimize) { goToHome(homeLayerItem.switcher, minimize) }
 +    // ada-home-sailfish: home is the Events page now, covers are the side page
-+    function goToSwitcher(minimize) { goToHome(homeLayerItem.events, minimize) }
++    function goToSwitcher(minimize) {
++        _adaGoingToSwitcher = true
++        try {
++            goToHome(homeLayerItem.events, minimize)
++        } finally {
++            _adaGoingToSwitcher = false
++        }
++    }
  
      function goToEvents() { goToHome(homeLayerItem.events, true) }
  
-@@ -309,8 +310,8 @@
+@@ -309,8 +322,8 @@
  
          if (window && window.userData) {
              if (appLayerItem.window == window.userData) {
@@ -22,7 +41,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                  alarmLayerItem.hide()
                  if (lipstickSettings.lockscreenVisible) {
                      unlock()
-@@ -514,7 +515,7 @@
+@@ -514,7 +527,7 @@
              showApplicationOverLockscreen = w === appLayerItem.window
              // Nothing more to do, allow this window to become current window.
          } else if (w == lockScreenLayerItem.window) {
@@ -31,7 +50,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
              showApplicationOverLockscreen = Desktop.startupWizardRunning
              if (!lipstickSettings.lockscreenVisible) {
                  minimizeLaunchingWindows()
-@@ -535,7 +536,7 @@
+@@ -531,11 +544,13 @@
+             minimizeLaunchingWindows()
+         } else if (w == homeLayerItem.events.window) {
+             homeLayerItem.lastActiveLayer = homeLayerItem.events
+-            minimizeLaunchingWindows()
++            // ada-home-sailfish: like the stock switcher, goToSwitcher() keeps launches going
++            if (!_adaGoingToSwitcher)
++                minimizeLaunchingWindows()
          } else if (w == homeLayerItem.switcher.window) {
              homeLayerItem.lastActiveLayer = homeLayerItem.switcher
          } else if (w == appLayerItem.window) {
@@ -40,7 +66,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
              showApplicationOverLockscreen = true
          }
  
-@@ -692,9 +693,10 @@
+@@ -692,9 +707,10 @@
                      visible: root.homeVisible
  
                      dimmer {
@@ -53,7 +79,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                      }
  
                      onTransitionComplete: ambienceChangeTimeout.running = false
-@@ -975,7 +977,8 @@
+@@ -975,7 +991,8 @@
                          } else if (peekFilter.leftActive && Desktop.settings.left_peek_to_events) {
                              homeLayerItem.setCurrentItem(homeLayerItem.events, !childrenOpaque, root._peekDirection)
                          } else {
@@ -63,7 +89,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                          }
                      }
                  }
-@@ -989,7 +992,7 @@
+@@ -989,7 +1006,7 @@
                  onGestureReset: {
                      if (isFullScreen) {
                          homeLayerItem.setCurrentItem(
@@ -72,7 +98,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                                      !childrenOpaque,
                                      root._peekDirection == "left" ? "right" : "left")
                          root.peekGestureReset()
-@@ -1091,8 +1094,8 @@
+@@ -1091,8 +1108,8 @@
  
                          onAboutToShowWindow: {
                              root.showApplicationOverLockscreen = Desktop.startupWizardRunning
@@ -83,7 +109,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                          }
                          onRequestFocus: {
                              if (root.visible) {
-@@ -1598,7 +1601,8 @@
+@@ -1598,7 +1615,8 @@
              return
          }
  
