@@ -87,7 +87,18 @@ Chosen apps are stored as `.desktop` file paths: `slot_apps`, `slot_names` (rena
 
 ## Install
 
-Ada Home is a Patchmanager patch packaged as an RPM (it's not in the Patchmanager web catalog). Patchmanager 3 must be installed.
+Ada Home is a Patchmanager patch; Patchmanager 3 must be installed. Install it **either** from the [Patchmanager web catalog](https://coderus.openrepos.net/pm2/project/ada-home-sailfish) **or** as an RPM, not both: both put it into the same folder (`/usr/share/patchmanager/patches/ada-home-sailfish/`). To switch, remove the installed one first (see [Undo](#undo)).
+
+If "Activate enabled patches when booting" is off in Patchmanager (the default), the patch has to be activated again after every reboot.
+
+### From the Patchmanager web catalog
+
+1. Settings → Patchmanager → pull down → **Web Catalog**, open **Ada Home** and tap the newest version under **Files** to install it.
+2. Back in Patchmanager: activate **Ada Home**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
+
+**Updating:** Patchmanager checks the catalog regularly and shows an "Update available" notification. Deactivate Ada Home, install the new version the same way, then activate it again. Your settings stay.
+
+### As an RPM
 
 1. Download `ada-home-sailfish-<version>-<release>.noarch.rpm` from the [releases](https://github.com/lorenz-graf/ada-home-sailfish/releases) on the phone and tap it in the file manager to install it (with developer mode on), or install it as root:
    ```
@@ -95,9 +106,7 @@ Ada Home is a Patchmanager patch packaged as an RPM (it's not in the Patchmanage
    ```
 2. Settings → Patchmanager: activate **Ada Home**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
 
-**Updating:** install the new RPM the same way. It deactivates Ada Home before replacing the files, so activate it again afterwards (step 2). Your settings stay.
-
-If "Activate enabled patches when booting" is off in Patchmanager (the default), the patch has to be activated again after every reboot.
+**Updating:** install the new RPM the same way. It deactivates Ada Home before replacing the files, so activate it again afterwards (step 2). Your settings stay. Patchmanager doesn't show update notifications for patches installed as an RPM; new versions are on the [releases](https://github.com/lorenz-graf/ada-home-sailfish/releases) page.
 
 <details>
 <summary>Without the RPM (copy the patch by hand)</summary>
@@ -157,7 +166,7 @@ cd / && patch -p1 --dry-run -N < /usr/share/patchmanager/patches/<patch>/unified
 
 - **Deactivate:** Settings → Patchmanager → Ada Home → deactivate, then **Restart preloaded services**. The homescreen is stock again.
 - **If the homescreen is broken:** hold the power key to restart. With "Activate enabled patches when booting" off, the phone comes up with the stock homescreen. Patchmanager also turns all patches off by itself when lipstick reports a QML type error or its service fails.
-- **Uninstall:** Settings → Patchmanager → long-press **Ada Home** → **Deactivate**, then long-press → **Remove** (Patchmanager removes the RPM; no password needed). Or as root: `devel-su pkcon remove ada-home-sailfish` (deactivates the patch first). The homescreen is stock after the next **Restart preloaded services** or reboot.
+- **Uninstall:** Settings → Patchmanager → long-press **Ada Home** → **Deactivate**, then long-press → **Remove** (works for both install ways; for the RPM, Patchmanager removes the package, no password needed). Or as root: `devel-su pkcon remove ada-home-sailfish` (deactivates the patch first). The homescreen is stock after the next **Restart preloaded services** or reboot.
 - **Remove the settings:** `dconf reset -f /desktop/lipstick-jolla-home/ada_home/`
 
 ## How it works
