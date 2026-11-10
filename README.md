@@ -1,5 +1,7 @@
 # Ada Home
 
+![Ada Home: four Home setups with stock Sailfish ambiences](screenshots/showcase.png)
+
 A Patchmanager patch for **Sailfish OS** that turns the homescreen into a minimal, text-only home:
 
 | | Stock Sailfish | Ada Home |
@@ -10,7 +12,16 @@ A Patchmanager patch for **Sailfish OS** that turns the homescreen into a minima
 
 Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 
+The screenshots use stock Sailfish ambiences; notifications, calendar entries, alarm and weather location in them are placeholders.
+
 ## Home
+
+<p>
+<img src="screenshots/home-origami.png" width="24%" alt="Home, apps left">
+<img src="screenshots/home-sailfish5.png" width="24%" alt="Home, apps centered, bigger text">
+<img src="screenshots/picker.png" width="24%" alt="Choosing an app for a slot">
+<img src="screenshots/loading.png" width="24%" alt="Loading screen while an app starts">
+</p>
 
 - **Clock and date:** tap opens the clock or calendar app. Long-press chooses which app that is ("Default" = the stock Clock / Calendar).
 - **Apps:** 0–8 slots (default 4) shown as text. An empty slot shows a grey "App". Long-press a slot to choose its app from a searchable list (ignores case, accents and separators; Enter picks the first match). To rename a slot, long-press it, type the new name into the search field and tap **Rename**.
@@ -22,6 +33,8 @@ Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 
 ## Second page
 
+<img src="screenshots/second-page.png" width="24%" alt="Second page: weather, alarms, calendar, running apps">
+
 Swipe in from the left or right screen edge. Each section has a section header and only shows when it has something to show:
 
 - **Weather** (the header is optional: Settings → Layout → Weather header)
@@ -32,6 +45,11 @@ Swipe in from the left or right screen edge. Each section has a section header a
 The background is dimmed on this page, not on Home.
 
 ## Settings
+
+<p>
+<img src="screenshots/settings-1.png" width="24%" alt="Settings: Home screen and Layout">
+<img src="screenshots/settings-2.png" width="24%" alt="Settings: Appearance and Gestures">
+</p>
 
 All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 
@@ -60,6 +78,8 @@ Chosen apps are stored as `.desktop` file paths: `slot_apps`, `slot_names` (rena
 "Ambience" colours come from the current ambience, which already picks them to contrast with its background. The shadow adapts too: dark behind light text, a light glow behind dark text.
 
 ## The Top menu
+
+<img src="screenshots/topmenu.png" width="24%" alt="Top menu with notifications">
 
 - A **Notifications** section below the toggles, with **Clear all**. Notifications can be swiped away directly (stock Sailfish needs a long-press first). Hidden while the device is locked.
 - The big lock button at the top is gone (the power key locks). Long-pressing the power key still shows power off / reboot there.
