@@ -68,6 +68,7 @@ All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 | | Text shadow (Off / Small / Medium / Large) | Small | `shadow_level` |
 | | Text color (Ambience / Ambience highlight / White / Black) | Ambience | `text_color` |
 | | Hide status bar (on Home; touching Home shows it for a moment) | Off | `hide_status_bar` |
+| | Hide status bar clock (on Home only; in apps it stays) | On | `hide_status_clock` |
 | | Hide alarm bell (in the status bar; alarms stay listed on the second page) | Off | `hide_alarm_bell` |
 | | Auto show keyboard (in the app list) | On | `auto_keyboard` |
 | Gestures | Swipe left app, Swipe right app | Calculator, Contacts | `swipe_left_app`, `swipe_right_app` |

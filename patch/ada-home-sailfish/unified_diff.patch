@@ -419,7 +419,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,786 @@
+@@ -0,0 +1,821 @@
 +/*
 + * ada-home-sailfish: the Home page.
 + * - Big clock and date. Tap: opens the chosen app (default Clock /
@@ -703,6 +703,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: doubleTapLockConfig; key: root._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: hideStatusBarConfig; key: root._path + "hide_status_bar"; defaultValue: false }
 +    ConfigurationValue { id: hideAlarmBellConfig; key: root._path + "hide_alarm_bell"; defaultValue: false }
++    ConfigurationValue { id: hideStatusClockConfig; key: root._path + "hide_status_clock"; defaultValue: true }
 +    ConfigurationValue { id: appsGapConfig; key: root._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTopConfig; key: root._path + "margin_top"; defaultValue: 0 }
@@ -808,7 +809,27 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        target: root._statusClock
 +        property: "opacity"
 +        value: 0
-+        when: !!root._statusClock && root._homeShown
++        when: root._hidingStatusClock
++    }
++
++    // Qt 5.6's Binding only gives back a previous *binding* when it switches
++    // off; a plain value stays overwritten. The status bar clock's opacity and
++    // the status bar's opacity are plain values (stock, and "Status Bar in
++    // apps", which shows this same status bar over apps), so the clock stayed
++    // hidden in apps once Home had been shown. Give the value back here, but
++    // only if it is still the one the Binding wrote (a restored binding of
++    // another patch is left alone).
++    readonly property bool _hidingStatusClock: !!_statusClock && _homeShown && hideStatusClockConfig.value
++    property Item _hiddenStatusClock
++    on_HidingStatusClockChanged: {
++        if (_hidingStatusClock) {
++            _hiddenStatusClock = _statusClock
++        } else if (_hiddenStatusClock) {
++            if (_hiddenStatusClock.opacity === 0) {
++                _hiddenStatusClock.opacity = 1
++            }
++            _hiddenStatusClock = null
++        }
 +    }
 +
 +    // Settings: Hide status bar. On Home the status bar is invisible and
@@ -843,7 +864,21 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        target: root._statusBar
 +        property: "opacity"
 +        value: root._statusBarOpacity
-+        when: !!root._statusBar && root._homeShown && hideStatusBarConfig.value
++        when: root._fadingStatusBar
++    }
++
++    // See _hidingStatusClock: give the status bar's opacity back after Home
++    readonly property bool _fadingStatusBar: !!_statusBar && _homeShown && hideStatusBarConfig.value
++    property Item _fadedStatusBar
++    on_FadingStatusBarChanged: {
++        if (_fadingStatusBar) {
++            _fadedStatusBar = _statusBar
++        } else if (_fadedStatusBar) {
++            if (_fadedStatusBar.opacity !== 1 && _fadedStatusBar.opacity === _statusBarOpacity) {
++                _fadedStatusBar.opacity = 1
++            }
++            _fadedStatusBar = null
++        }
 +    }
 +
 +    // x for an item of width w, following the alignment setting
@@ -1256,7 +1291,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,258 @@
+@@ -0,0 +1,266 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1293,6 +1328,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: doubleTapLock; key: settings._path + "double_tap_lock"; defaultValue: false }
 +    ConfigurationValue { id: hideStatusBar; key: settings._path + "hide_status_bar"; defaultValue: false }
 +    ConfigurationValue { id: hideAlarmBell; key: settings._path + "hide_alarm_bell"; defaultValue: false }
++    ConfigurationValue { id: hideStatusClock; key: settings._path + "hide_status_clock"; defaultValue: true }
 +    ConfigurationValue { id: weatherHeader; key: settings._path + "weather_header"; defaultValue: true }
 +    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
@@ -1473,6 +1509,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                description: "On Home it shows up for a moment when you touch the screen"
 +                checked: hideStatusBar.value
 +                onToggled: hideStatusBar.value = !hideStatusBar.value
++            }
++
++            HomeSettingsSwitch {
++                label: "Hide status bar clock"
++                description: "On Home only. In apps the status bar clock stays"
++                checked: hideStatusClock.value
++                onToggled: hideStatusClock.value = !hideStatusClock.value
 +            }
 +
 +            HomeSettingsSwitch {
