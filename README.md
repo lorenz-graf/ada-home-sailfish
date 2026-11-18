@@ -38,11 +38,23 @@ The screenshots use stock Sailfish ambiences; notifications, calendar entries, a
 Swipe in from the left or right screen edge. Each section has a section header and only shows when it has something to show:
 
 - **Weather** (the header is optional: Settings → Layout → Weather header)
-- **Alarms:** all alarms that are switched on, with time and name. Tap opens the clock app chosen for the Home clock. This list also shows when the weather widget is off
+- **Alarms:** all alarms that are switched on, with time, name and the days they repeat on ("Every day", "Weekdays", "Weekend" or short day names; nothing for a one-time alarm). Alarms that won't go off within the next 24 hours are dimmed. Tap opens the clock app chosen for the Home clock. This list also shows when the weather widget is off
 - **Calendar**
 - **Running apps:** the covers, small and 3 per row by default (Settings → Layout → Always small covers; off = stock behaviour). Long-press a cover for **Close all**, as in stock Sailfish
 
 The background is dimmed on this page, not on Home.
+
+## Links between Android apps
+
+When an Android app opens a link in another Android app that is already running (e.g. a web link in WhatsApp or Signal that opens in an Android browser), Android brings that app to the front only inside AppSupport and doesn't tell the Sailfish homescreen. The first app's window just goes away. In stock Sailfish you then see the running apps (Home is the covers there) and tap the app yourself; with Ada Home you would land on the text-only Home.
+
+Ada Home handles this:
+
+- If AppSupport reports within 1.5 s which app received the link and that app already has a window, Ada Home brings that window to the front, as if you had tapped its cover.
+- Otherwise you land on the second page with the running apps, like in stock Sailfish.
+- If the receiving app wasn't running yet, it opens normally (that already worked).
+
+To know which app received the link, Ada Home listens to three signals of AppSupport's service `com.jolla.apkd` on your session bus: `appShown`, `appOpened` and `appClosed`. They only carry an app name such as `org.mozilla.fennec_fdroid/org.mozilla.fenix.IntentReceiverActivity`, no link or content. Ada Home only listens (it calls no AppSupport methods), keeps the name for 1.5 s to compare it with the window that just went away, and stores or sends nothing. Stock lipstick listens to other services the same way (e.g. the keyboard).
 
 ## Settings
 
@@ -82,7 +94,7 @@ Chosen apps are stored as `.desktop` file paths: `slot_apps`, `slot_names` (rena
 
 <img src="screenshots/topmenu.png" width="24%" alt="Top menu with notifications">
 
-- A **Notifications** section below the toggles, with **Clear all**. Notifications can be swiped away directly (stock Sailfish needs a long-press first). Hidden while the device is locked.
+- A **Notifications** section below the toggles, with **Clear all**. Notifications can be swiped away directly (stock Sailfish needs a long-press first). Hidden while the device is locked. While you pull the menu down, the section is uncovered from the top (newest first) as the menu's edge moves down.
 - The big lock button at the top is gone (the power key locks). Long-pressing the power key still shows power off / reboot there.
 - The gear (Organize, Top menu settings) sits at the right end of the Notifications line instead of its own row.
 
@@ -175,6 +187,7 @@ cd / && patch -p1 --dry-run -N < /usr/share/patchmanager/patches/<patch>/unified
 Patchmanager serves patched copies of the homescreen's QML (`/usr/share/lipstick-jolla-home-qt5/`) to lipstick; nothing on disk is changed. The patch:
 
 - changes where navigation lands (`compositor.qml`, `layers/HomeLayer.qml`): the Events page becomes Home, the covers become the second page, and the wallpaper dimming follows the covers page
+- handles link hand-offs between Android apps (`compositor.qml`): when the app on screen lowers its own window, it shows the covers page, and brings forward the app AppSupport reports in its `appShown`/`appOpened`/`appClosed` D-Bus signals (see [Links between Android apps](#links-between-android-apps))
 - adds the Home page (`eventsview/HomeFavourites.qml`, `HomeAppPicker.qml`, `HomeSettings*.qml`, `HomeTextShadow.qml`) to the Events window (`eventsview/EventsWindow.qml`); the stock Events list stays for the lock screen. The loading screen is part of the Home page and follows the covers page's own launch tracking
 - adds weather, active alarms and calendar above the covers (`switcher/CoversWidgets.qml`, `switcher/CoversAlarms.qml`, `switcher/Switcher.qml`)
 - adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`)
