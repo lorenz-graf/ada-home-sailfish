@@ -1,7 +1,7 @@
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstick-jolla-home-qt5/compositor.qml
 --- a/usr/share/lipstick-jolla-home-qt5/compositor.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/compositor.qml
-@@ -275,6 +275,13 @@
+@@ -275,6 +275,64 @@
      signal peekGestureReset()
      signal minimizeLaunchingWindows
  
@@ -12,10 +12,61 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
 +    // ended on Home instead of in the app.
 +    property bool _adaKeepLaunches
 +
++    // ada-home-sailfish: Android link hand-off. When an Android app hands a link
++    // to another Android app that already runs, AppSupport moves it to the front
++    // only inside Android: the first app lowers its window, the second one never
++    // asks lipstick to be raised. com.jolla.apkd reports the receiving app
++    // (appShown/appOpened/appClosed), so pair that with the lowered window and
++    // bring the receiver's window forward like a tap on its cover.
++    property var _adaAppWindows: ({}) // surface className (Android: package) → windowId
++    property string _adaLoweredPkg
++    property real _adaLoweredAt
++    property string _adaReportedPkg
++    property real _adaReportedAt
++
++    function _adaAndroidReported(component) {
++        _adaReportedPkg = String(component).split("/")[0]
++        _adaReportedAt = Date.now()
++        _adaTryHandoff()
++    }
++
++    function _adaTryHandoff() {
++        if (!_adaLoweredPkg || !_adaReportedPkg || _adaReportedPkg === _adaLoweredPkg
++                || Math.abs(_adaReportedAt - _adaLoweredAt) > 1500) {
++            return
++        }
++        var winId = _adaAppWindows[_adaReportedPkg]
++        _adaLoweredPkg = ""
++        _adaReportedPkg = ""
++        if (winId !== undefined && windowForId(winId)) {
++            adaHandoffTimer.winId = winId
++            adaHandoffTimer.restart()
++        }
++    }
++
++    Timer {
++        id: adaHandoffTimer
++
++        property int winId
++        interval: 50 // let the lowered window's hide finish first
++        onTriggered: root.goToApplication(winId)
++    }
++
++    NemoDBus.DBusInterface {
++        service: "com.jolla.apkd"
++        path: "/com/jolla/apkd"
++        iface: "com.jolla.apkd"
++        signalsEnabled: true
++
++        function appShown(componentName) { root._adaAndroidReported(componentName) }
++        function appOpened(componentName) { root._adaAndroidReported(componentName) }
++        function appClosed(componentName) { root._adaAndroidReported(componentName) }
++    }
++
      onVisibleChanged: {
          if (visible && !incomingAlarmTimer.running) {
              _resetIncomingAlarm()
-@@ -300,7 +307,15 @@
+@@ -300,7 +358,15 @@
          }
      }
  
@@ -32,7 +83,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
  
      function goToEvents() { goToHome(homeLayerItem.events, true) }
  
-@@ -309,8 +324,8 @@
+@@ -309,8 +375,8 @@
  
          if (window && window.userData) {
              if (appLayerItem.window == window.userData) {
@@ -43,7 +94,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                  alarmLayerItem.hide()
                  if (lipstickSettings.lockscreenVisible) {
                      unlock()
-@@ -514,7 +529,7 @@
+@@ -514,7 +580,7 @@
              showApplicationOverLockscreen = w === appLayerItem.window
              // Nothing more to do, allow this window to become current window.
          } else if (w == lockScreenLayerItem.window) {
@@ -52,7 +103,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
              showApplicationOverLockscreen = Desktop.startupWizardRunning
              if (!lipstickSettings.lockscreenVisible) {
                  minimizeLaunchingWindows()
-@@ -531,11 +546,13 @@
+@@ -531,11 +597,13 @@
              minimizeLaunchingWindows()
          } else if (w == homeLayerItem.events.window) {
              homeLayerItem.lastActiveLayer = homeLayerItem.events
@@ -68,7 +119,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
              showApplicationOverLockscreen = true
          }
  
-@@ -692,9 +709,10 @@
+@@ -692,9 +760,10 @@
                      visible: root.homeVisible
  
                      dimmer {
@@ -81,7 +132,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                      }
  
                      onTransitionComplete: ambienceChangeTimeout.running = false
-@@ -975,7 +993,8 @@
+@@ -975,7 +1044,8 @@
                          } else if (peekFilter.leftActive && Desktop.settings.left_peek_to_events) {
                              homeLayerItem.setCurrentItem(homeLayerItem.events, !childrenOpaque, root._peekDirection)
                          } else {
@@ -91,7 +142,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                          }
                      }
                  }
-@@ -989,7 +1008,7 @@
+@@ -989,7 +1059,7 @@
                  onGestureReset: {
                      if (isFullScreen) {
                          homeLayerItem.setCurrentItem(
@@ -100,7 +151,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                                      !childrenOpaque,
                                      root._peekDirection == "left" ? "right" : "left")
                          root.peekGestureReset()
-@@ -1091,8 +1110,13 @@
+@@ -1091,8 +1161,13 @@
  
                          onAboutToShowWindow: {
                              root.showApplicationOverLockscreen = Desktop.startupWizardRunning
@@ -116,7 +167,17 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                          }
                          onRequestFocus: {
                              if (root.visible) {
-@@ -1598,7 +1622,8 @@
+@@ -1563,6 +1638,9 @@
+     }
+ 
+     onWindowAdded: {
++        if (window.surface && window.surface.className && window.category == "") {
++            _adaAppWindows[window.surface.className] = window.windowId
++        }
+         if (debug) {
+             console.debug("Compositor: Window added \"" + window.title + "\"")
+         }
+@@ -1598,7 +1676,8 @@
              return
          }
  
@@ -126,6 +187,35 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
          var isLockScreenWindow = window.isInProcess && window.title == "Lock Screen"
          var isLauncherWindow = window.isInProcess && window.title == "Launcher"
          var isShutdownWindow = window.isInProcess && window.title == "Shutdown"
+@@ -1762,6 +1841,9 @@
+     }
+ 
+     onWindowRemoved: {
++        if (window.surface && _adaAppWindows[window.surface.className] === window.windowId) {
++            delete _adaAppWindows[window.surface.className]
++        }
+         if (debug) console.debug("\nCompositor: Window removed \"" + window.title + "\"")
+ 
+         var w = window.userData
+@@ -1816,6 +1898,18 @@
+             return
+         }
+ 
++        // ada-home-sailfish: the app on screen hid its own window (e.g. an Android
++        // app handed a link to another Android app, which AppSupport doesn't
++        // raise). Land on the running apps like stock does, not on Home.
++        if (wrapper.windowType === WindowType.Application && wrapper === appLayerItem.window) {
++            homeLayerItem.lastActiveLayer = homeLayerItem.switcher
++            homeLayerItem.setCurrentItem(homeLayerItem.switcher, homeVisible)
++            // ...and bring forward the app it handed over to, if AppSupport reports one
++            _adaLoweredPkg = window.surface ? window.surface.className : ""
++            _adaLoweredAt = Date.now()
++            _adaTryHandoff()
++        }
++
+         switch (wrapper.windowType) {
+         case WindowType.Alarm:
+             alarmLayerItem.hide(wrapper)
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
 --- a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
@@ -1821,7 +1911,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,181 @@
 +/*
 + * ada-home-sailfish: active alarms on the covers page (below the weather),
 + * with a section header. Hidden while no alarm is enabled. Tap opens the
@@ -1841,9 +1931,56 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 +    id: root
 +
 +    readonly property int count: alarmList.count
++    // refreshed every minute while shown, so the "within 24 h" look stays current
++    property var now: new Date()
 +
 +    width: parent ? parent.width : 0
 +    visible: count > 0
++
++    // daysOfWeek (Nemo.Alarms): one letter per repeat day, Monday first
++    // "mtwTfsS", in any order; empty = one-time alarm (shows nothing,
++    // like the Clock app)
++    // next time the alarm goes off (ms since epoch); days as in repeatText
++    function nextTrigger(hour, minute, days, from) {
++        var all = "mtwTfsS"
++        for (var i = 0; i <= 7; i++) {
++            var d = new Date(from.getTime())
++            d.setDate(d.getDate() + i)
++            d.setHours(hour, minute, 0, 0)
++            if (d.getTime() <= from.getTime())
++                continue
++            if (!days || days.length === 0 || days.indexOf(all[(d.getDay() + 6) % 7]) >= 0)
++                return d.getTime()
++        }
++        return -1
++    }
++
++    function repeatText(days) {
++        if (!days || days.length === 0)
++            return ""
++        var all = "mtwTfsS"
++        var picked = ""
++        for (var i = 0; i < all.length; i++) {
++            if (days.indexOf(all[i]) >= 0)
++                picked += all[i]
++        }
++        if (picked === all)
++            return "Every day"
++        if (picked === "mtwTf")
++            return "Weekdays"
++        if (picked === "sS")
++            return "Weekend"
++        var names = []
++        var monday = new Date(2012, 0, 2) // Jan 2, 2012 is a Monday
++        for (i = 0; i < all.length; i++) {
++            if (picked.indexOf(all[i]) >= 0) {
++                var d = new Date(monday)
++                d.setDate(monday.getDate() + i)
++                names.push(Qt.formatDateTime(d, "ddd"))
++            }
++        }
++        return names.join(", ")
++    }
 +
 +    ConfigurationValue {
 +        id: clockAppConfig
@@ -1870,6 +2007,15 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 +        model: alarmsModel
 +    }
 +
++    Timer {
++        interval: 60000
++        repeat: true
++        running: root.visible
++        onTriggered: root.now = new Date()
++    }
++
++    onVisibleChanged: if (visible) now = new Date()
++
 +    SectionHeader {
 +        text: "Alarms"
 +    }
@@ -1883,6 +2029,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 +            id: alarmItem
 +
 +            readonly property QtObject alarm: model.alarm
++            // alarms going off within the next 24 h in full colour, the others dimmed
++            readonly property bool soon: {
++                if (!alarm)
++                    return true
++                var t = root.nextTrigger(alarm.hour, alarm.minute, alarm.daysOfWeek, root.now)
++                return t >= 0 && t - root.now.getTime() <= 24 * 60 * 60 * 1000
++            }
++            readonly property real textOpacity: soon ? 1.0 : Theme.opacityHigh
 +
 +            width: root.width
 +            height: Theme.itemSizeSmall
@@ -1904,6 +2058,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 +                    return Format.formatDate(d, Formatter.TimeValue)
 +                }
 +                color: alarmItem.highlighted ? Theme.highlightColor : Theme.primaryColor
++                opacity: alarmItem.textOpacity
 +                font.pixelSize: Theme.fontSizeLarge
 +            }
 +
@@ -1911,13 +2066,29 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 +                anchors {
 +                    left: timeLabel.right
 +                    leftMargin: Theme.paddingLarge
-+                    right: parent.right
-+                    rightMargin: Theme.horizontalPageMargin
++                    right: daysLabel.left
++                    rightMargin: daysLabel.text.length > 0 ? Theme.paddingMedium : 0
 +                    baseline: timeLabel.baseline
 +                }
 +                text: alarmItem.alarm && alarmItem.alarm.title.length > 0 ? alarmItem.alarm.title : "Alarm"
 +                color: alarmItem.highlighted ? Theme.highlightColor : Theme.secondaryColor
++                opacity: alarmItem.textOpacity
 +                truncationMode: TruncationMode.Fade
++            }
++
++            Label {
++                id: daysLabel
++
++                anchors {
++                    right: parent.right
++                    // kept clear of the right edge, where section headers sit
++                    rightMargin: Theme.horizontalPageMargin + Theme.paddingLarge * 2
++                    baseline: timeLabel.baseline
++                }
++                text: alarmItem.alarm ? root.repeatText(alarmItem.alarm.daysOfWeek) : ""
++                color: alarmItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
++                opacity: alarmItem.textOpacity
++                font.pixelSize: Theme.fontSizeSmall
 +            }
 +        }
 +    }
@@ -2367,18 +2538,38 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenu.qml b/usr/share/li
                          }
  
                          states: State {
-@@ -464,6 +430,72 @@
+@@ -464,6 +430,92 @@
                  }
              }
          }
 +
-+        // ada-home-sailfish: notifications below the shortcuts
-+        TopMenuNotifications {
++        // ada-home-sailfish: notifications below the shortcuts. Revealed from
++        // the top as the menu's edge moves down (content stays in place, only
++        // the part above the edge shows). The container keeps the full height
++        // so the menu's size doesn't change while pulling.
++        Item {
++            id: notificationsContainer
++
 +            width: parent.width
-+            settingsMenuOpen: topMenu.settingsMenuOpen
-+            settingsMenuHeight: topMenu.contextMenu ? topMenu.contextMenu.height : 0
-+            onSettingsClicked: topMenu.settingsClicked(menuParent)
-+            onSettingsPressAndHold: topMenu.openSettingsMenu(menuParent)
++            height: topMenuNotifications.height
++
++            Item {
++                width: parent.width
++                height: topMenu.expanded
++                        ? parent.height
++                        : Math.max(0, Math.min(parent.height, topMenu.offset - notificationsContainer.y))
++                clip: height < parent.height
++
++                TopMenuNotifications {
++                    id: topMenuNotifications
++
++                    width: parent.width
++                    settingsMenuOpen: topMenu.settingsMenuOpen
++                    settingsMenuHeight: topMenu.contextMenu ? topMenu.contextMenu.height : 0
++                    onSettingsClicked: topMenu.settingsClicked(menuParent)
++                    onSettingsPressAndHold: topMenu.openSettingsMenu(menuParent)
++                }
++            }
 +        }
 +    }
 +
