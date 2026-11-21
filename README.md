@@ -109,7 +109,7 @@ If "Activate enabled patches when booting" is off in Patchmanager (the default),
 1. Settings → Patchmanager → pull down → **Web Catalog**, open **AdaHome** and tap the newest version under **Files** to install it.
 2. Back in Patchmanager: activate **AdaHome**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
 
-**Updating:** Patchmanager checks the catalog regularly and shows an "Update available" notification. Deactivate AdaHome, install the new version the same way, then activate it again. Your settings stay.
+**Updating:** Patchmanager checks the catalog 15 minutes after boot and then every 2 hours, and shows an "Update available" notification; opening **Web Catalog** checks right away. Install the new version the same way (AdaHome can stay active). The old version keeps running until you deactivate and activate AdaHome again, then pull down → **Restart preloaded services**. Your settings stay.
 
 ### As an RPM
 
