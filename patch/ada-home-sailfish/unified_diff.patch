@@ -1,17 +1,10 @@
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstick-jolla-home-qt5/compositor.qml
 --- a/usr/share/lipstick-jolla-home-qt5/compositor.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/compositor.qml
-@@ -275,6 +275,64 @@
+@@ -275,6 +275,57 @@
      signal peekGestureReset()
      signal minimizeLaunchingWindows
  
-+    // ada-home-sailfish: true while goToSwitcher() or the app layer's aboutToShowWindow
-+    // runs. Both make the Events page current now, and making Events current minimizes
-+    // launching windows (setCurrentWindow → appLayer.clearPendingWindows()), which
-+    // cancelled the app being shown: App Grid launches and taps on running app covers
-+    // ended on Home instead of in the app.
-+    property bool _adaKeepLaunches
-+
 +    // ada-home-sailfish: Android link hand-off. When an Android app hands a link
 +    // to another Android app that already runs, AppSupport moves it to the front
 +    // only inside Android: the first app lowers its window, the second one never
@@ -66,24 +59,17 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
      onVisibleChanged: {
          if (visible && !incomingAlarmTimer.running) {
              _resetIncomingAlarm()
-@@ -300,7 +358,15 @@
+@@ -300,7 +351,8 @@
          }
      }
  
 -    function goToSwitcher(minimize) { goToHome(homeLayerItem.switcher, minimize) }
 +    // ada-home-sailfish: home is the Events page now, covers are the side page
-+    function goToSwitcher(minimize) {
-+        _adaKeepLaunches = true
-+        try {
-+            goToHome(homeLayerItem.events, minimize)
-+        } finally {
-+            _adaKeepLaunches = false
-+        }
-+    }
++    function goToSwitcher(minimize) { goToHome(homeLayerItem.events, minimize) }
  
      function goToEvents() { goToHome(homeLayerItem.events, true) }
  
-@@ -309,8 +375,8 @@
+@@ -309,8 +361,8 @@
  
          if (window && window.userData) {
              if (appLayerItem.window == window.userData) {
@@ -94,7 +80,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                  alarmLayerItem.hide()
                  if (lipstickSettings.lockscreenVisible) {
                      unlock()
-@@ -514,7 +580,7 @@
+@@ -514,7 +566,7 @@
              showApplicationOverLockscreen = w === appLayerItem.window
              // Nothing more to do, allow this window to become current window.
          } else if (w == lockScreenLayerItem.window) {
@@ -103,14 +89,16 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
              showApplicationOverLockscreen = Desktop.startupWizardRunning
              if (!lipstickSettings.lockscreenVisible) {
                  minimizeLaunchingWindows()
-@@ -531,11 +597,13 @@
+@@ -531,11 +583,15 @@
              minimizeLaunchingWindows()
          } else if (w == homeLayerItem.events.window) {
              homeLayerItem.lastActiveLayer = homeLayerItem.events
 -            minimizeLaunchingWindows()
-+            // ada-home-sailfish: like the stock switcher, goToSwitcher() keeps launches going
-+            if (!_adaKeepLaunches)
-+                minimizeLaunchingWindows()
++            // ada-home-sailfish: Events is Home now and takes the stock switcher's role,
++            // so like the switcher it doesn't minimize launching windows. Home becomes
++            // current while apps start (goToSwitcher, the app layer showing a window,
++            // the fallback when a dialog such as the "open with" chooser closes), and
++            // minimizing there cancelled the app: it never came to the front.
          } else if (w == homeLayerItem.switcher.window) {
              homeLayerItem.lastActiveLayer = homeLayerItem.switcher
          } else if (w == appLayerItem.window) {
@@ -119,7 +107,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
              showApplicationOverLockscreen = true
          }
  
-@@ -692,9 +760,10 @@
+@@ -692,9 +748,10 @@
                      visible: root.homeVisible
  
                      dimmer {
@@ -132,7 +120,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                      }
  
                      onTransitionComplete: ambienceChangeTimeout.running = false
-@@ -975,7 +1044,8 @@
+@@ -975,7 +1032,8 @@
                          } else if (peekFilter.leftActive && Desktop.settings.left_peek_to_events) {
                              homeLayerItem.setCurrentItem(homeLayerItem.events, !childrenOpaque, root._peekDirection)
                          } else {
@@ -142,7 +130,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                          }
                      }
                  }
-@@ -989,7 +1059,7 @@
+@@ -989,7 +1047,7 @@
                  onGestureReset: {
                      if (isFullScreen) {
                          homeLayerItem.setCurrentItem(
@@ -151,23 +139,18 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
                                      !childrenOpaque,
                                      root._peekDirection == "left" ? "right" : "left")
                          root.peekGestureReset()
-@@ -1091,8 +1161,13 @@
+@@ -1091,8 +1149,8 @@
  
                          onAboutToShowWindow: {
                              root.showApplicationOverLockscreen = Desktop.startupWizardRunning
 -                            homeLayerItem.lastActiveLayer = homeLayerItem.switcher
 -                            homeLayerItem.setCurrentItem(homeLayerItem.switcher, root.homeVisible)
 +                            homeLayerItem.lastActiveLayer = homeLayerItem.events // ada-home-sailfish
-+                            root._adaKeepLaunches = true
-+                            try {
-+                                homeLayerItem.setCurrentItem(homeLayerItem.events, root.homeVisible)
-+                            } finally {
-+                                root._adaKeepLaunches = false
-+                            }
++                            homeLayerItem.setCurrentItem(homeLayerItem.events, root.homeVisible)
                          }
                          onRequestFocus: {
                              if (root.visible) {
-@@ -1563,6 +1638,9 @@
+@@ -1563,6 +1621,9 @@
      }
  
      onWindowAdded: {
@@ -177,7 +160,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
          if (debug) {
              console.debug("Compositor: Window added \"" + window.title + "\"")
          }
-@@ -1598,7 +1676,8 @@
+@@ -1598,7 +1659,8 @@
              return
          }
  
@@ -187,7 +170,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
          var isLockScreenWindow = window.isInProcess && window.title == "Lock Screen"
          var isLauncherWindow = window.isInProcess && window.title == "Launcher"
          var isShutdownWindow = window.isInProcess && window.title == "Shutdown"
-@@ -1762,6 +1841,9 @@
+@@ -1762,6 +1824,9 @@
      }
  
      onWindowRemoved: {
@@ -197,7 +180,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
          if (debug) console.debug("\nCompositor: Window removed \"" + window.title + "\"")
  
          var w = window.userData
-@@ -1816,6 +1898,18 @@
+@@ -1816,6 +1881,18 @@
              return
          }
  
@@ -2287,7 +2270,22 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                              cols = switcherGrid.smallColumns
                          switcherGrid.columns = cols
                          switcherGrid.coverSize = switcherGrid.columns == switcherGrid.largeColumns
-@@ -639,7 +673,8 @@
+@@ -558,6 +592,14 @@
+                                 Lipstick.compositor.launcherLayer.hide()
+                             }
+                             if (running) {
++                                // ada-home-sailfish: the covers page is a side page now and
++                                // hides while the app comes up (Home becomes current), which
++                                // set the app's window Hidden: apps that unmap on that (e.g.
++                                // Terminal) were taken as closed. Stock does this only without
++                                // multitasking home, where the switcher hides the same way.
++                                if (Lipstick.compositor.multitaskingHome) {
++                                    triggerActivating()
++                                }
+                                 switcherRoot.minimizeLaunchingWindows()
+                                 minimized = false
+                                 Lipstick.compositor.windowToFront(windowId)
+@@ -639,7 +681,8 @@
              Binding {
                  target: Lipstick.compositor.homeLayer
                  property: "statusMargin"
