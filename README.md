@@ -1,10 +1,10 @@
-# Ada Home
+# AdaHome
 
-![Ada Home: four Home setups with stock Sailfish ambiences](screenshots/showcase.png)
+![AdaHome: four Home setups with stock Sailfish ambiences](screenshots/showcase.png)
 
 A Patchmanager patch for **Sailfish OS** that turns the homescreen into a minimal, text-only home:
 
-| | Stock Sailfish | Ada Home |
+| | Stock Sailfish | AdaHome |
 |---|---|---|
 | Home (after leaving an app, unlocking, the home key) | Covers of running apps | Big clock and date, up to 8 apps as plain text |
 | Second page (swipe in from the left or right edge) | Events: notifications, weather, calendar | Weather, active Alarms, Calendar and Running apps (section headers, small covers 3 per row, dimmed background) |
@@ -46,15 +46,15 @@ The background is dimmed on this page, not on Home.
 
 ## Links between Android apps
 
-When an Android app opens a link in another Android app that is already running (e.g. a web link in WhatsApp or Signal that opens in an Android browser), Android brings that app to the front only inside AppSupport and doesn't tell the Sailfish homescreen. The first app's window just goes away. In stock Sailfish you then see the running apps (Home is the covers there) and tap the app yourself; with Ada Home you would land on the text-only Home.
+When an Android app opens a link in another Android app that is already running (e.g. a web link in WhatsApp or Signal that opens in an Android browser), Android brings that app to the front only inside AppSupport and doesn't tell the Sailfish homescreen. The first app's window just goes away. In stock Sailfish you then see the running apps (Home is the covers there) and tap the app yourself; with AdaHome you would land on the text-only Home.
 
-Ada Home handles this:
+AdaHome handles this:
 
-- If AppSupport reports within 1.5 s which app received the link and that app already has a window, Ada Home brings that window to the front, as if you had tapped its cover.
+- If AppSupport reports within 1.5 s which app received the link and that app already has a window, AdaHome brings that window to the front, as if you had tapped its cover.
 - Otherwise you land on the second page with the running apps, like in stock Sailfish.
 - If the receiving app wasn't running yet, it opens normally (that already worked).
 
-To know which app received the link, Ada Home listens to three signals of AppSupport's service `com.jolla.apkd` on your session bus: `appShown`, `appOpened` and `appClosed`. They only carry an app name such as `org.mozilla.fennec_fdroid/org.mozilla.fenix.IntentReceiverActivity`, no link or content. Ada Home only listens (it calls no AppSupport methods), keeps the name for 1.5 s to compare it with the window that just went away, and stores or sends nothing. Stock lipstick listens to other services the same way (e.g. the keyboard).
+To know which app received the link, AdaHome listens to three signals of AppSupport's service `com.jolla.apkd` on your session bus: `appShown`, `appOpened` and `appClosed`. They only carry an app name such as `org.mozilla.fennec_fdroid/org.mozilla.fenix.IntentReceiverActivity`, no link or content. AdaHome only listens (it calls no AppSupport methods), keeps the name for 1.5 s to compare it with the window that just went away, and stores or sends nothing. Stock lipstick listens to other services the same way (e.g. the keyboard).
 
 ## Settings
 
@@ -100,16 +100,16 @@ Chosen apps are stored as `.desktop` file paths: `slot_apps`, `slot_names` (rena
 
 ## Install
 
-Ada Home is a Patchmanager patch; Patchmanager 3 must be installed. Install it **either** from the [Patchmanager web catalog](https://coderus.openrepos.net/pm2/project/ada-home-sailfish) **or** as an RPM, not both: both put it into the same folder (`/usr/share/patchmanager/patches/ada-home-sailfish/`). To switch, remove the installed one first (see [Undo](#undo)).
+AdaHome is a Patchmanager patch; Patchmanager 3 must be installed. Install it **either** from the [Patchmanager web catalog](https://coderus.openrepos.net/pm2/project/ada-home-sailfish) **or** as an RPM, not both: both put it into the same folder (`/usr/share/patchmanager/patches/ada-home-sailfish/`). To switch, remove the installed one first (see [Undo](#undo)).
 
 If "Activate enabled patches when booting" is off in Patchmanager (the default), the patch has to be activated again after every reboot.
 
 ### From the Patchmanager web catalog
 
-1. Settings → Patchmanager → pull down → **Web Catalog**, open **Ada Home** and tap the newest version under **Files** to install it.
-2. Back in Patchmanager: activate **Ada Home**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
+1. Settings → Patchmanager → pull down → **Web Catalog**, open **AdaHome** and tap the newest version under **Files** to install it.
+2. Back in Patchmanager: activate **AdaHome**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
 
-**Updating:** Patchmanager checks the catalog regularly and shows an "Update available" notification. Deactivate Ada Home, install the new version the same way, then activate it again. Your settings stay.
+**Updating:** Patchmanager checks the catalog regularly and shows an "Update available" notification. Deactivate AdaHome, install the new version the same way, then activate it again. Your settings stay.
 
 ### As an RPM
 
@@ -117,9 +117,9 @@ If "Activate enabled patches when booting" is off in Patchmanager (the default),
    ```
    devel-su pkcon install-local ada-home-sailfish-<version>-<release>.noarch.rpm
    ```
-2. Settings → Patchmanager: activate **Ada Home**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
+2. Settings → Patchmanager: activate **AdaHome**, then pull down → **Restart preloaded services** (this restarts the homescreen and closes open apps).
 
-**Updating:** install the new RPM the same way. It deactivates Ada Home before replacing the files, so activate it again afterwards (step 2). Your settings stay. Patchmanager doesn't show update notifications for patches installed as an RPM; new versions are on the [releases](https://github.com/lorenz-graf/ada-home-sailfish/releases) page.
+**Updating:** install the new RPM the same way. It deactivates AdaHome before replacing the files, so activate it again afterwards (step 2). Your settings stay. Patchmanager doesn't show update notifications for patches installed as an RPM; new versions are on the [releases](https://github.com/lorenz-graf/ada-home-sailfish/releases) page.
 
 <details>
 <summary>Without the RPM (copy the patch by hand)</summary>
@@ -138,35 +138,35 @@ Remove it with `devel-su rm -rf /usr/share/patchmanager/patches/ada-home-sailfis
 
 Patchmanager applies the active patches one after another. Two patches can change the same file as long as they change different lines. If they change the same lines, the one applied later fails to activate.
 
-**Active together with Ada Home on my phone:**
+**Active together with AdaHome on my phone:**
 
 | Patch | Version | What it changes |
 |---|---|---|
 | Launcher Search List (`sfos-patch-launcher-list`) | 0.2.6 | App Grid |
 | Compact Battery (`sfos-patch-compact-battery`) | 0.1.2 | Battery icon in the status bar |
-| Status Bar in apps + Compact Cellular (`status-bar-compact-cellular`) | 0.2.0-local1 | Status bar; also `compositor.qml` and `HomeLayer.qml`, but other lines than Ada Home. A local merge of the two patches below, not in the catalog |
+| Status Bar in apps + Compact Cellular (`status-bar-compact-cellular`) | 0.2.0-local1 | Status bar; also `compositor.qml` and `HomeLayer.qml`, but other lines than AdaHome. A local merge of the two patches below, not in the catalog |
 
 **Also checked:**
 
-- **Status Bar in apps** (`sfos-patch-status-bar` 0.2.0): used with Ada Home on the phone, works.
-- **Compact Cellular Indicator** (`compact-cellular-indicator` 1.0.0) and **Homescreen Running Apps Cover Icons** (`homescreen-cover-icons` 0.2.0): dry run only (both apply cleanly with Ada Home, in both orders), not used on the phone.
-- **Status Bar in apps** and **Compact Cellular Indicator** can't be active together, with or without Ada Home: with Status Bar in apps applied, Compact Cellular Indicator fails in `StatusArea.qml`. That's why I use the merged version above.
+- **Status Bar in apps** (`sfos-patch-status-bar` 0.2.0): used with AdaHome on the phone, works.
+- **Compact Cellular Indicator** (`compact-cellular-indicator` 1.0.0) and **Homescreen Running Apps Cover Icons** (`homescreen-cover-icons` 0.2.0): dry run only (both apply cleanly with AdaHome, in both orders), not used on the phone.
+- **Status Bar in apps** and **Compact Cellular Indicator** can't be active together, with or without AdaHome: with Status Bar in apps applied, Compact Cellular Indicator fails in `StatusArea.qml`. That's why I use the merged version above.
 
 **What to expect from other patches** (not tested unless listed above):
 
-- **Status bar patches** should work: Ada Home changes no status bar file. On Home it only sets the status bar colour and hides the status bar clock (and optionally the alarm bell) at runtime. A patch that replaces the clock or the alarm icon with its own item may stay visible on Home.
-- **App Grid, Silica and app patches** don't touch the files Ada Home changes.
+- **Status bar patches** should work: AdaHome changes no status bar file. On Home it only sets the status bar colour and hides the status bar clock (and optionally the alarm bell) at runtime. A patch that replaces the clock or the alarm icon with its own item may stay visible on Home.
+- **App Grid, Silica and app patches** don't touch the files AdaHome changes.
 - **Events view patches:** Home replaces the Events list (it stays only on the lock screen), so anything a patch adds to the Events view won't show on Home.
 - **Cover patches:** changes to the cover itself (`SwitcherItem.qml`) should work. Patches that change the covers page layout (`Switcher.qml`) may conflict.
-- **Notification and Top menu patches** will likely conflict: Ada Home changes `TopMenu.qml`, `TopMenuNotifications.qml`, `NotificationListView.qml` and `NotificationStandardGroupItem.qml`.
+- **Notification and Top menu patches** will likely conflict: AdaHome changes `TopMenu.qml`, `TopMenuNotifications.qml`, `NotificationListView.qml` and `NotificationStandardGroupItem.qml`.
 - **Patches that change `compositor.qml` or `HomeLayer.qml`** (page switching, edge swipes) may conflict, depending on the lines.
 
 <details>
-<summary>Stock files Ada Home changes, and how to check another patch</summary>
+<summary>Stock files AdaHome changes, and how to check another patch</summary>
 
 All under `/usr/share/lipstick-jolla-home-qt5/`: `compositor.qml`, `layers/HomeLayer.qml`, `eventsview/EventsWindow.qml`, `switcher/Switcher.qml`, `notifications/NotificationListView.qml`, `notifications/NotificationStandardGroupItem.qml`, `topmenu/TopMenu.qml`, `topmenu/TopMenuNotifications.qml`. The other files in the patch are new.
 
-Files another patch changes: `grep '^+++ ' /usr/share/patchmanager/patches/<patch>/unified_diff.patch`. With Ada Home active and the other patch not active, a dry run shows whether the other patch still applies on top (nothing is changed):
+Files another patch changes: `grep '^+++ ' /usr/share/patchmanager/patches/<patch>/unified_diff.patch`. With AdaHome active and the other patch not active, a dry run shows whether the other patch still applies on top (nothing is changed):
 
 ```
 cd / && patch -p1 --dry-run -N < /usr/share/patchmanager/patches/<patch>/unified_diff.patch
@@ -177,9 +177,9 @@ cd / && patch -p1 --dry-run -N < /usr/share/patchmanager/patches/<patch>/unified
 
 ## Undo
 
-- **Deactivate:** Settings → Patchmanager → Ada Home → deactivate, then **Restart preloaded services**. The homescreen is stock again.
+- **Deactivate:** Settings → Patchmanager → AdaHome → deactivate, then **Restart preloaded services**. The homescreen is stock again.
 - **If the homescreen is broken:** hold the power key to restart. With "Activate enabled patches when booting" off, the phone comes up with the stock homescreen. Patchmanager also turns all patches off by itself when lipstick reports a QML type error or its service fails.
-- **Uninstall:** Settings → Patchmanager → long-press **Ada Home** → **Deactivate**, then long-press → **Remove** (works for both install ways; for the RPM, Patchmanager removes the package, no password needed). Or as root: `devel-su pkcon remove ada-home-sailfish` (deactivates the patch first). The homescreen is stock after the next **Restart preloaded services** or reboot.
+- **Uninstall:** Settings → Patchmanager → long-press **AdaHome** → **Deactivate**, then long-press → **Remove** (works for both install ways; for the RPM, Patchmanager removes the package, no password needed). Or as root: `devel-su pkcon remove ada-home-sailfish` (deactivates the patch first). The homescreen is stock after the next **Restart preloaded services** or reboot.
 - **Remove the settings:** `dconf reset -f /desktop/lipstick-jolla-home/ada_home/`
 
 ## How it works

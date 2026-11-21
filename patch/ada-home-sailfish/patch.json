@@ -1,9 +1,9 @@
 {
     "name": "ada-home-sailfish",
-    "display_name": "Ada Home",
+    "display_name": "AdaHome",
     "description": "Minimal text homescreen: big clock, apps as text and swipe apps on Home, notifications in the Top menu, weather, calendar and running apps on the second page.",
     "category": "homescreen",
     "author": "lorenz-graf",
-    "version": "0.3.1",
+    "version": "0.3.2",
     "compatible": ["5.2.0.22"]
 }

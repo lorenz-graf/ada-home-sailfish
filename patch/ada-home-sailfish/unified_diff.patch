@@ -509,7 +509,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,821 @@
+@@ -0,0 +1,844 @@
 +/*
 + * ada-home-sailfish: the Home page.
 + * - Big clock and date. Tap: opens the chosen app (default Clock /
@@ -684,6 +684,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    property real _swipeY
 +    property double _swipeTime
 +    property bool swiped
++    // The finger went sideways first: the touch stays with Home, so the Top
++    // menu / App Grid pull (LayersParent.qml, a vertical drag that takes over
++    // after 3 mm down or up) can't grab a quick swipe that drifts a little
++    readonly property real _swipeEdgeWidth: Theme.paddingLarge * 2
++    property bool swipeHorizontal
 +
 +    function swipeBegin(item, mouse) {
 +        var p = item.mapToItem(root, mouse.x, mouse.y)
@@ -691,6 +696,18 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        _swipeY = p.y
 +        _swipeTime = Date.now()
 +        swiped = false
++        swipeHorizontal = false
++    }
++
++    // Called on every move; returns true once the swipe counts as horizontal
++    function swipeMove(item, mouse) {
++        if (!swipeHorizontal) {
++            var p = item.mapToItem(root, mouse.x, mouse.y)
++            var dx = Math.abs(p.x - _swipeX)
++            swipeHorizontal = _swipeX >= _swipeEdgeWidth && _swipeX <= width - _swipeEdgeWidth
++                    && dx > Theme.startDragDistance / 2 && dx > Math.abs(p.y - _swipeY)
++        }
++        return swipeHorizontal
 +    }
 +
 +    // Returns true if this release finished a swipe (then don't treat it as a tap)
@@ -698,10 +715,10 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        var p = item.mapToItem(root, mouse.x, mouse.y)
 +        var dx = p.x - _swipeX
 +        var dy = p.y - _swipeY
-+        var edgeWidth = Theme.paddingLarge * 2
-+        if (_swipeX < edgeWidth || _swipeX > width - edgeWidth
++        // Once horizontal, nothing else can take the gesture: allow up to 45°
++        if (_swipeX < _swipeEdgeWidth || _swipeX > width - _swipeEdgeWidth
 +                || Math.abs(dx) < Theme.itemSizeSmall
-+                || Math.abs(dx) < 2 * Math.abs(dy)
++                || Math.abs(dx) < (swipeHorizontal ? 1 : 2) * Math.abs(dy)
 +                || Date.now() - _swipeTime > 1000) {
 +            return false
 +        }
@@ -1026,12 +1043,16 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        enabled: root.view === ""
 +
 +        onPressed: {
++            preventStealing = false
 +            root.revealStatusBar(true)
 +            root.swipeBegin(homeArea, mouse)
 +            moved = false
 +            pressedTarget = targetAt(mouse.x, mouse.y)
 +        }
 +        onPositionChanged: {
++            if (root.swipeMove(homeArea, mouse)) {
++                preventStealing = true
++            }
 +            if (!moved && (Math.abs(mouse.x - root._swipeX) > Theme.startDragDistance
 +                           || Math.abs(mouse.y - root._swipeY) > Theme.startDragDistance)) {
 +                moved = true
@@ -1040,9 +1061,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        onReleased: {
 +            root.revealStatusBar(false)
 +            root.swipeEnd(homeArea, mouse)
++            preventStealing = false
 +        }
 +        onCanceled: {
 +            moved = true
++            preventStealing = false
 +            root.revealStatusBar(false)
 +        }
 +

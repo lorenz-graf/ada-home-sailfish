@@ -1,4 +1,4 @@
-# Ada Home for Sailfish OS, packaged as an RPM Patchmanager patch (see Patchmanager's
+# AdaHome for Sailfish OS, packaged as an RPM Patchmanager patch (see Patchmanager's
 # README-Patch-Developers.md). Built by ../build-rpm.sh (noarch, only the patch files).
 %global patchname ada-home-sailfish
 %global patchdir %{_datadir}/patchmanager/patches/%{patchname}
@@ -18,7 +18,7 @@ A Patchmanager patch for the Sailfish OS homescreen: big clock, apps as text and
 swipe apps on Home, notifications in the Top menu, weather, calendar and running
 apps on the second page.
 
-After installing or updating, activate "Ada Home" in Settings > Patchmanager and
+After installing or updating, activate "AdaHome" in Settings > Patchmanager and
 pull down > Restart preloaded services. Uninstalling deactivates the patch first.
 
 # Patchmanager unapplies with the diff stored in the patch dir, so the patch must be
