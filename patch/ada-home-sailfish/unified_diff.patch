@@ -199,6 +199,27 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/compositor.qml b/usr/share/lipstic
          switch (wrapper.windowType) {
          case WindowType.Alarm:
              alarmLayerItem.hide(wrapper)
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventFeedList.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/EventFeedList.qml
+--- a/usr/share/lipstick-jolla-home-qt5/eventsview/EventFeedList.qml
++++ b/usr/share/lipstick-jolla-home-qt5/eventsview/EventFeedList.qml
+@@ -17,6 +17,8 @@
+     property bool hasRemovableNotifications
+     // will be true if there are no notifications, but removal animations are still running
+     property bool showingRemovableContent
++    // ada-home-sailfish: also shown on the second page, which isn't the Events view
++    property bool viewVisible: Desktop.eventsViewVisible
+ 
+     signal expanded(Item item, real itemYOffset)
+ 
+@@ -101,7 +103,7 @@
+                     "downloader": accountManager.item.downloader,
+                     "providerName": providerName,
+                     "subviewModel": eventFeedListModel.item,
+-                    "viewVisible": Qt.binding(function() { return Desktop.eventsViewVisible }),
++                    "viewVisible": Qt.binding(function() { return column.viewVisible }),
+                     "eventsColumnMaxWidth": Math.min(Screen.width, Screen.height)
+                 }
+                 setSource(Qt.resolvedUrl("file:///usr/share/lipstick/eventfeed/" + providerName + "-delegate.qml"), props)
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
 --- a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
@@ -2119,14 +2140,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,313 @@
 +/*
 + * ada-home-sailfish: notifications on the second page (Settings → Layout →
 + * Notifications: Second page), below weather and calendar, built like the
-+ * stock Events page (eventsview/EventsViewList.qml): the stock header with
-+ * its remove-mode button (Clear all / Exit), system updates first, long-press
-+ * for remove mode, tap outside to leave it. Event feeds (social accounts) are
-+ * left out.
++ * stock Events page (eventsview/EventsViewList.qml): a header with the stock
++ * remove-mode buttons (Clear all / Exit), system updates first, long-press
++ * for remove mode, tap outside to leave it, and the event feeds of accounts
++ * (Mastodon, Nextcloud) below the notifications.
 + * Reuses the stock notification components from ../notifications.
 + * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
 + */
@@ -2137,6 +2158,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +import org.nemomobile.devicelock 1.0
 +import com.jolla.lipstick 0.1
 +import "../notifications" as Notifications
++import "../eventsview"
 +
 +Item {
 +    id: root
@@ -2145,9 +2167,59 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +    property bool pageVisible
 +    readonly property bool allowed: Desktop.deviceLockState === DeviceLock.Unlocked
 +    readonly property bool hasNotifications: notificationList.count > 0 || systemUpdateList.count > 0
-+    // Read by the stock header (remove-mode button), same as in EventsViewList
-+    readonly property bool _housekeepingAllowed: notificationListModel.populated
-+                                                 && notificationList.hasRemovableNotifications
++                                             || feedsList.hasVisibleFeeds
++    // Same as in EventsViewList: remove mode only when something can be removed
++    readonly property bool _housekeepingAllowed: (notificationListModel.populated
++                                                  && notificationList.hasRemovableNotifications)
++                                                 || feedsList.hasRemovableNotifications
++
++    // The page's flickable, how far it is scrolled past this item's top, and
++    // the status bar height (the sticky header sits below it)
++    property Flickable flickable
++    property real scrollY
++    property real statusBarHeight
++
++    // Like EventsViewList: when an item expands below the visible part, scroll
++    // so it shows (below the sticky header)
++    function _scrollToExpandingItem(item, yOffset) {
++        expandingItemConn.targetYOffset = yOffset
++        expandingItemConn.target = item
++    }
++
++    Connections {
++        id: expandingItemConn
++
++        property real targetYOffset
++
++        onHeightChanged: {
++            var f = root.flickable
++            if (!f || !target) {
++                return
++            }
++            var targetTopY = f.contentItem.mapFromItem(target, 0, 0).y
++            var targetBottomY = targetTopY + target.height
++            if (targetBottomY < f.contentY + f.height) {
++                return
++            }
++            var covered = notificationHeader.height
++            var to = Math.min(targetTopY + targetYOffset - covered, targetBottomY - f.height)
++            to = Math.min(to, f.contentHeight - f.height)
++            if (to > f.contentY) {
++                expandScroll.to = to
++                expandScroll.restart()
++            }
++        }
++    }
++
++    NumberAnimation {
++        id: expandScroll
++
++        target: root.flickable
++        property: "contentY"
++        duration: 400
++        easing.type: Easing.InOutQuad
++        onStopped: expandingItemConn.target = null
++    }
 +
 +    width: parent ? parent.width : 0
 +    height: allowed ? notificationsArea.height + noNotificationsLabel.height : 0
@@ -2200,20 +2272,21 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +        }
 +    }
 +
-+    // The stock header calls feedsList.* (event feeds); none here
-+    QtObject {
-+        id: feedsList
-+
-+        readonly property bool showingRemovableContent: false
-+        function findMatchingRemovableItems(filterFunc, matchingResults) { return true }
-+        function removeAllNotifications() {}
-+    }
-+
 +    Item {
 +        id: notificationsArea
 +
++        // Where the visible part of the page starts, in this item's
++        // coordinates. The status bar slides away as the page scrolls
++        // (SwitcherLayer.statusOffset), so only its remaining part counts.
++        readonly property real viewTop: root.scrollY
++                                        + Math.max(0, root.statusBarHeight
++                                                      - (root.flickable ? root.flickable.contentY : 0))
++        // Layout height of the header (it gets taller while sticky)
++        readonly property real headerHeight: notificationHeader.implicitHeight
++
 +        width: parent.width
-+        height: notificationHeader.height + systemUpdateList.contentHeight + notificationList.contentHeight
++        height: headerHeight + systemUpdateList.contentHeight + notificationList.contentHeight
++                + feedsList.height
 +        // The lists below are very tall; keep their touch area to the visible
 +        // part so the covers underneath get their taps
 +        clip: true
@@ -2234,35 +2307,134 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +            onClicked: Lipstick.compositor.eventsLayer.setHousekeeping(false)
 +        }
 +
-+        // Finds notificationList and feedsList by id from this file
-+        Notifications.NotificationHeader {
++        // The lists, cut off below the header (it sticks to the top while
++        // scrolling, so nothing shows through it). Inside, positions are in
++        // notificationsArea's coordinates.
++        Item {
++            id: listsClip
++
++            y: notificationHeader.y + notificationHeader.height
++            width: parent.width
++            height: Math.max(0, notificationsArea.height - y)
++            clip: true
++
++            Item {
++                y: -listsClip.y
++                width: parent.width
++                height: notificationsArea.height
++
++                Notifications.NotificationListView {
++                    id: systemUpdateList
++
++                    y: notificationsArea.headerHeight
++                    // Same trick as the Events view: a tall view is fully populated
++                    // without binding height to contentHeight.
++                    height: Screen.height * 1000
++                    model: systemUpdateListModel.populated ? systemUpdateListModel : null
++                    viewVisible: root.pageVisible && root.allowed
++                }
++
++                Notifications.NotificationListView {
++                    id: notificationList
++
++                    property var displayedIds: ({})
++
++                    onDisplayed: displayedIds[id] = true
++                    onExpanded: root._scrollToExpandingItem(item, 0)
++
++                    y: systemUpdateList.y + systemUpdateList.contentHeight
++                    height: Screen.height * 1000
++                    model: notificationListModel.populated ? notificationListModel : null
++                    viewVisible: root.pageVisible && root.allowed
++                }
++
++                // Event feeds of accounts (Mastodon, Nextcloud), as on the Events page
++                EventFeedList {
++                    id: feedsList
++
++                    y: notificationList.y + notificationList.contentHeight
++                    width: parent.width
++                    viewVisible: root.pageVisible && root.allowed
++                    onExpanded: root._scrollToExpandingItem(item, itemYOffset)
++                }
++            }
++        }
++
++        // Header in the style of the other section headers on this page
++        // ("Notifications" on the right). Remove mode starts with a long-press
++        // (no levels button); then the stock Clear all / Exit buttons show on
++        // the left. Sticks to the top while the notifications scroll by
++        // and is pushed away at the end of the section.
++        Item {
 +            id: notificationHeader
 +
++            readonly property bool housekeeping: Lipstick.compositor.eventsLayer.housekeeping
++            readonly property bool down: clearButton.down || exitButton.down
++            property bool sticky: notificationsArea.viewTop > 0
++            // Like the stock sticky header: room for rounded corners and the camera cutout
++            readonly property real topPadding: {
++                if (!sticky || !(desktop.orientation & Orientation.PortraitMask)) {
++                    return 0
++                }
++                var biggestCorner = Math.max(Screen.topLeftCorner.radius, Screen.topRightCorner.radius,
++                                             Screen.bottomLeftCorner.radius, Screen.bottomRightCorner.radius)
++                return Math.max(biggestCorner * 0.7, Screen.topCutout.height, 0)
++            }
++
++            y: Math.max(0, Math.min(notificationsArea.viewTop,
++                                    notificationsArea.height - height))
 +            width: parent.width
-+        }
++            implicitHeight: Math.max(Theme.itemSizeSmall, buttonRow.height) + Theme.paddingSmall
++            height: implicitHeight + topPadding
 +
-+        Notifications.NotificationListView {
-+            id: systemUpdateList
++            Row {
++                id: buttonRow
 +
-+            y: notificationHeader.height
-+            // Same trick as the Events view: a tall view is fully populated
-+            // without binding height to contentHeight.
-+            height: Screen.height * 1000
-+            model: systemUpdateListModel.populated ? systemUpdateListModel : null
-+            viewVisible: root.pageVisible && root.allowed
-+        }
++                anchors {
++                    left: parent.left
++                    leftMargin: Theme.horizontalPageMargin - Theme.paddingMedium
++                    top: parent.top
++                    topMargin: notificationHeader.topPadding + Theme.paddingSmall / 2
++                }
++                spacing: Theme.paddingMedium
++                enabled: notificationHeader.housekeeping
++                opacity: enabled ? 1.0 : 0.0
++                Behavior on opacity { FadeAnimator {} }
 +
-+        Notifications.NotificationListView {
-+            id: notificationList
++                Notifications.NotificationHeaderButton {
++                    id: clearButton
 +
-+            property var displayedIds: ({})
++                    //% "Clear all"
++                    text: qsTrId("lipstick-jolla-home-bt-clear_all")
++                    icon.source: "image://theme/icon-splus-delete"
++                    onClicked: {
++                        notificationList.removeAll()
++                        feedsList.removeAllNotifications()
++                        Lipstick.compositor.eventsLayer.setHousekeeping(false)
++                    }
++                }
 +
-+            onDisplayed: displayedIds[id] = true
++                Notifications.NotificationHeaderButton {
++                    id: exitButton
 +
-+            y: systemUpdateList.y + systemUpdateList.contentHeight
-+            height: Screen.height * 1000
-+            model: notificationListModel.populated ? notificationListModel : null
-+            viewVisible: root.pageVisible && root.allowed
++                    //% "Exit"
++                    text: qsTrId("lipstick-jolla-home-bt-exit")
++                    icon.source: "image://theme/icon-splus-cancel"
++                    showBackground: true
++                    onClicked: Lipstick.compositor.eventsLayer.setHousekeeping(false)
++                }
++            }
++
++            SectionHeader {
++                anchors {
++                    left: buttonRow.right
++                    right: parent.right
++                    // SectionHeader's own x margin is lost when anchored
++                    rightMargin: Theme.horizontalPageMargin
++                    verticalCenter: buttonRow.verticalCenter
++                }
++                text: "Notifications"
++            }
 +        }
 +    }
 +
@@ -2272,7 +2444,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +        y: notificationsArea.height
 +        x: Theme.horizontalPageMargin
 +        width: parent.width - 2 * Theme.horizontalPageMargin
-+        opacity: !root.hasNotifications && notificationList.contentHeight < 1 ? 1.0 : 0.0
++        opacity: !root.hasNotifications && notificationList.contentHeight < 1
++                 && !feedsList.showingRemovableContent ? 1.0 : 0.0
 +
 +        //% "You don't have any notifications right now"
 +        text: qsTrId("lipstick-jolla-home-la-you_dont_have_any_notifications")
@@ -2449,7 +2622,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
          return windowFound ? modelIdx : -1
      }
  
-@@ -382,12 +440,58 @@
+@@ -382,12 +440,62 @@
          visible: Lipstick.compositor.switcherLayer.scale === 1.0 && switcherRoot.contentHeight > switcherRoot.height
      }
  
@@ -2484,6 +2657,10 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 +        active: notificationsPlaceConfig.value === 1
 +        sourceComponent: CoversNotifications {
 +            pageVisible: switcherRoot.visible
++            flickable: switcherRoot
++            scrollY: switcherRoot.contentY - coversNotifications.y
++            statusBarHeight: Lipstick.compositor.homeLayer.statusBar.baseY
++                             + Lipstick.compositor.homeLayer.statusBar.height
 +        }
 +    }
 +
@@ -2509,7 +2686,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
          height: switcherGrid.implicitHeight <= switcherRoot.height - y
                  ? switcherRoot.height - y
                  : switcherGrid.implicitHeight + switcherGrid.rowSpacing - 1
-@@ -410,7 +514,8 @@
+@@ -410,7 +518,8 @@
              readonly property int largeItemCount: largeColumns * largeRows
              property QtObject ngfEffect
  
@@ -2519,7 +2696,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
              statusBarHeight: Lipstick.compositor.multitaskingHome ? switcherRoot.statusBarHeight : 0
  
              function updateColumns() {
-@@ -426,7 +531,8 @@
+@@ -426,7 +535,8 @@
  
              function doUpdateColumns() {
                  var cols = switcherGrid.largeColumns
@@ -2529,7 +2706,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                      cols = switcherGrid.smallColumns
                  if (cols !== switcherGrid.columns) {
                      scrollAnimation.stop()
-@@ -454,7 +560,8 @@
+@@ -454,7 +564,8 @@
                  ScriptAction {
                      script: {
                          var cols = switcherGrid.largeColumns
@@ -2539,7 +2716,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                              cols = switcherGrid.smallColumns
                          switcherGrid.columns = cols
                          switcherGrid.coverSize = switcherGrid.columns == switcherGrid.largeColumns
-@@ -558,6 +665,14 @@
+@@ -558,6 +669,14 @@
                                  Lipstick.compositor.launcherLayer.hide()
                              }
                              if (running) {
@@ -2554,7 +2731,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                                  switcherRoot.minimizeLaunchingWindows()
                                  minimized = false
                                  Lipstick.compositor.windowToFront(windowId)
-@@ -639,7 +754,8 @@
+@@ -639,7 +758,8 @@
              Binding {
                  target: Lipstick.compositor.homeLayer
                  property: "statusMargin"

@@ -40,7 +40,7 @@ Swipe in from the left or right screen edge. Each section has a section header a
 - **Weather** (the header is optional: Settings → Layout → Weather header)
 - **Alarms:** all alarms that are switched on, with time, name and the days they repeat on ("Every day", "Weekdays", "Weekend" or short day names; nothing for a one-time alarm). Alarms that won't go off within the next 24 hours are dimmed. Tap opens the clock app chosen for the Home clock. This list also shows when the weather widget is off
 - **Calendar**
-- **Notifications** (only with Settings → Layout → Notifications: Second page): the stock Events notifications section, with its header button for remove mode (**Clear all**, **Exit**); long-press a notification, then swipe it away. Event feeds of social accounts aren't shown
+- **Notifications** (only with Settings → Layout → Notifications: Second page): as on the stock Events page, including system updates and the feeds of accounts like Mastodon and Nextcloud. Long-press a notification for remove mode: swipe single ones away, or **Clear all** / **Exit** in the header. The header sticks to the top while you scroll through the notifications, and expanding a group scrolls it into view
 - **Running apps:** the covers, small and 3 per row by default (Settings → Layout → Always small covers; off = stock behaviour), the most recently used app first (Settings → Layout → Recent apps first; off = stock order). Long-press a cover for **Close all**, as in stock Sailfish
 
 The background is dimmed on this page, not on Home.
@@ -167,7 +167,7 @@ Patchmanager applies the active patches one after another. Two patches can chang
 <details>
 <summary>Stock files AdaHome changes, and how to check another patch</summary>
 
-All under `/usr/share/lipstick-jolla-home-qt5/`: `compositor.qml`, `layers/HomeLayer.qml`, `eventsview/EventsWindow.qml`, `switcher/Switcher.qml`, `notifications/NotificationListView.qml`, `notifications/NotificationStandardGroupItem.qml`, `topmenu/TopMenu.qml`, `topmenu/TopMenuNotifications.qml`. The other files in the patch are new.
+All under `/usr/share/lipstick-jolla-home-qt5/`: `compositor.qml`, `layers/HomeLayer.qml`, `eventsview/EventsWindow.qml`, `switcher/Switcher.qml`, `eventsview/EventFeedList.qml`, `notifications/NotificationListView.qml`, `notifications/NotificationStandardGroupItem.qml`, `topmenu/TopMenu.qml`, `topmenu/TopMenuNotifications.qml`. The other files in the patch are new.
 
 Files another patch changes: `grep '^+++ ' /usr/share/patchmanager/patches/<patch>/unified_diff.patch`. With AdaHome active and the other patch not active, a dry run shows whether the other patch still applies on top (nothing is changed):
 
@@ -193,7 +193,7 @@ Patchmanager serves patched copies of the homescreen's QML (`/usr/share/lipstick
 - handles link hand-offs between Android apps (`compositor.qml`): when the app on screen lowers its own window, it shows the covers page, and brings forward the app AppSupport reports in its `appShown`/`appOpened`/`appClosed` D-Bus signals (see [Links between Android apps](#links-between-android-apps))
 - adds the Home page (`eventsview/HomeFavourites.qml`, `HomeAppPicker.qml`, `HomeSettings*.qml`, `HomeTextShadow.qml`) to the Events window (`eventsview/EventsWindow.qml`); the stock Events list stays for the lock screen. The loading screen is part of the Home page and follows the covers page's own launch tracking
 - adds weather, active alarms and calendar above the covers (`switcher/CoversWidgets.qml`, `switcher/CoversAlarms.qml`, `switcher/Switcher.qml`)
-- adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`), or with the stock header to the second page (`switcher/CoversNotifications.qml`)
+- adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`), or to the second page (`switcher/CoversNotifications.qml`, with the stock notification and account feed lists; `eventsview/EventFeedList.qml` gets a `viewVisible` property so the feeds also refresh there)
 - leaves the status bar files alone: the Home page sets the status bar's colour, hides its clock (and optionally the whole bar) while Home is shown, and optionally hides the alarm bell, all at runtime, so status bar patches still apply. If a patch rebuilds the status bar so the clock or the bell can't be found, they just stay visible. The lock screen has its own status bar and isn't changed
 
 ## Build
