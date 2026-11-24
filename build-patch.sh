@@ -8,7 +8,7 @@ set -eu
 cd "$(dirname "$0")"
 
 NAME=ada-home-sailfish
-VERSION=0.3.3
+VERSION=0.3.4
 OUT=patch/$NAME
 
 rm -rf "$OUT"

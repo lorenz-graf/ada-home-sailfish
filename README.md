@@ -40,7 +40,7 @@ Swipe in from the left or right screen edge. Each section has a section header a
 - **Weather** (the header is optional: Settings → Layout → Weather header)
 - **Alarms:** all alarms that are switched on, with time, name and the days they repeat on ("Every day", "Weekdays", "Weekend" or short day names; nothing for a one-time alarm). Alarms that won't go off within the next 24 hours are dimmed. Tap opens the clock app chosen for the Home clock. This list also shows when the weather widget is off
 - **Calendar**
-- **Running apps:** the covers, small and 3 per row by default (Settings → Layout → Always small covers; off = stock behaviour). Long-press a cover for **Close all**, as in stock Sailfish
+- **Running apps:** the covers, small and 3 per row by default (Settings → Layout → Always small covers; off = stock behaviour), the most recently used app first (Settings → Layout → Recent apps first; off = stock order). Long-press a cover for **Close all**, as in stock Sailfish
 
 The background is dimmed on this page, not on Home.
 
@@ -74,6 +74,7 @@ All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 | | Side margin, Top margin, Bottom margin (steps of one standard spacing) | 0 | `margin_side`, `margin_top`, `margin_bottom` |
 | | Clock to apps distance (Auto = centred) | Auto | `apps_gap` |
 | | Always small covers (running apps 3 per row) | On | `small_covers` |
+| | Recent apps first (running apps sorted by last use) | On | `recent_first` |
 | | Weather header (on the second page) | On | `weather_header` |
 | Appearance | Text size | 1.0 | `text_scale` |
 | | Bold font | Off | `bold` |

@@ -1387,7 +1387,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,266 @@
+@@ -0,0 +1,274 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1427,6 +1427,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: hideStatusClock; key: settings._path + "hide_status_clock"; defaultValue: true }
 +    ConfigurationValue { id: weatherHeader; key: settings._path + "weather_header"; defaultValue: true }
 +    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
++    ConfigurationValue { id: recentFirst; key: settings._path + "recent_first"; defaultValue: true }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTop; key: settings._path + "margin_top"; defaultValue: 0 }
@@ -1557,6 +1558,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                description: "Running apps 3 per row, also with only a few apps"
 +                checked: smallCovers.value
 +                onToggled: smallCovers.value = !smallCovers.value
++            }
++
++            HomeSettingsSwitch {
++                label: "Recent apps first"
++                description: "Running apps sorted by last use, most recent first"
++                checked: recentFirst.value
++                onToggled: recentFirst.value = !recentFirst.value
 +            }
 +
 +            HomeSettingsSwitch {
@@ -2189,7 +2197,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
  import "../compositor"
  import "../main"
  
-@@ -31,6 +32,16 @@
+@@ -31,6 +32,56 @@
  
      property alias model: switcherModel
  
@@ -2203,10 +2211,71 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 +        onValueChanged: switcherGrid.updateColumns()
 +    }
 +
++    // ada-home-sailfish: Settings → Layout → Recent apps first. The most
++    // recently used app's cover comes first; off = stock (covers stay where
++    // they were opened or dragged to). Covers are only moved while this page
++    // is hidden, so they never jump around on screen.
++    ConfigurationValue {
++        id: recentFirstConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/recent_first"
++        defaultValue: true
++        onValueChanged: _adaSortTimer.restart()
++    }
++
++    property bool _adaSortPending
++
++    Timer {
++        id: _adaSortTimer
++
++        interval: 1
++        onTriggered: switcherRoot._adaSortByRecent()
++    }
++
++    function _adaSortByRecent() {
++        if (!recentFirstConfig.value) {
++            _adaSortPending = false
++            return
++        }
++        if (visible || housekeeping) {
++            _adaSortPending = true
++            return
++        }
++        _adaSortPending = false
++        for (var i = 0; i < mruSwitcherModel.count; i++) {
++            var src = mruSwitcherModel.mapRowToSource(i)
++            if (src > i) {
++                switcherModel.move(src, i)
++            }
++        }
++        secondLastAppIndex = mruSwitcherModel.count > 1 ? mruSwitcherModel.mapRowToSource(1) : -1
++    }
++
      property int secondLastAppIndex
  
      onVisibleChanged: {
-@@ -382,12 +393,32 @@
+@@ -39,6 +90,9 @@
+             // The view is completely hidden. The delay is a grace period, so
+             // that if you quickly exit and reenter the view has not moved.
+             resetPosition(300)
++            if (_adaSortPending) {
++                _adaSortTimer.restart()
++            }
+         } else {
+             cancelResetPosition()
+         }
+@@ -274,6 +328,10 @@
+         else
+             secondLastAppIndex = -1
+ 
++        if (windowFound) {
++            _adaSortTimer.restart() // ada-home-sailfish: Recent apps first
++        }
++
+         return windowFound ? modelIdx : -1
+     }
+ 
+@@ -382,12 +440,32 @@
          visible: Lipstick.compositor.switcherLayer.scale === 1.0 && switcherRoot.contentHeight > switcherRoot.height
      }
  
@@ -2240,7 +2309,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
          height: switcherGrid.implicitHeight <= switcherRoot.height - y
                  ? switcherRoot.height - y
                  : switcherGrid.implicitHeight + switcherGrid.rowSpacing - 1
-@@ -410,7 +441,8 @@
+@@ -410,7 +488,8 @@
              readonly property int largeItemCount: largeColumns * largeRows
              property QtObject ngfEffect
  
@@ -2250,7 +2319,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
              statusBarHeight: Lipstick.compositor.multitaskingHome ? switcherRoot.statusBarHeight : 0
  
              function updateColumns() {
-@@ -426,7 +458,8 @@
+@@ -426,7 +505,8 @@
  
              function doUpdateColumns() {
                  var cols = switcherGrid.largeColumns
@@ -2260,7 +2329,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                      cols = switcherGrid.smallColumns
                  if (cols !== switcherGrid.columns) {
                      scrollAnimation.stop()
-@@ -454,7 +487,8 @@
+@@ -454,7 +534,8 @@
                  ScriptAction {
                      script: {
                          var cols = switcherGrid.largeColumns
@@ -2270,7 +2339,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                              cols = switcherGrid.smallColumns
                          switcherGrid.columns = cols
                          switcherGrid.coverSize = switcherGrid.columns == switcherGrid.largeColumns
-@@ -558,6 +592,14 @@
+@@ -558,6 +639,14 @@
                                  Lipstick.compositor.launcherLayer.hide()
                              }
                              if (running) {
@@ -2285,7 +2354,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                                  switcherRoot.minimizeLaunchingWindows()
                                  minimized = false
                                  Lipstick.compositor.windowToFront(windowId)
-@@ -639,7 +681,8 @@
+@@ -639,7 +728,8 @@
              Binding {
                  target: Lipstick.compositor.homeLayer
                  property: "statusMargin"
