@@ -211,7 +211,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventFeedList.qml b/usr
  
      signal expanded(Item item, real itemYOffset)
  
-@@ -101,7 +103,7 @@
+@@ -101,13 +103,19 @@
                      "downloader": accountManager.item.downloader,
                      "providerName": providerName,
                      "subviewModel": eventFeedListModel.item,
@@ -220,6 +220,18 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventFeedList.qml b/usr
                      "eventsColumnMaxWidth": Math.min(Screen.width, Screen.height)
                  }
                  setSource(Qt.resolvedUrl("file:///usr/share/lipstick/eventfeed/" + providerName + "-delegate.qml"), props)
+             }
+ 
+             onLoaded: {
++                // ada-home-sailfish: the Nextcloud feed only re-reads its items
++                // (and every 5 min) while showingInActiveView is on, which
++                // nothing set, so new items never showed
++                if (loader.item.showingInActiveView !== undefined) {
++                    loader.item.showingInActiveView = Qt.binding(function() { return column.viewVisible })
++                }
+                 column._reloadHasRemovableNotifications()
+             }
+ 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
 --- a/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/EventsWindow.qml
@@ -1902,6 +1914,53 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/layers/HomeLayer.qml b/usr/share/l
                      } else if (layer.isAlternateItem) {
                          layer.cleanup = cleanup
                      } else {
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/AdaFeeds.js b/usr/share/lipstick-jolla-home-qt5/notifications/AdaFeeds.js
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/notifications/AdaFeeds.js
+@@ -0,0 +1,43 @@
++/*
++ * ada-home-sailfish: helpers for the account feeds (EventFeedList) outside
++ * the stock Events window. The stock "removable" flags of a feed plugin can
++ * stay false (the Nextcloud plugin only updates them on a change after load),
++ * so the stock Clear all path skips such feeds. These look at the feed groups
++ * themselves: items below the feed list with removeAllNotifications() and
++ * userRemovable === true.
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++.pragma library
++
++function _walk(item, fn) {
++    var kids = item.children
++    if (!kids) {
++        return
++    }
++    for (var i = 0; i < kids.length; i++) {
++        fn(kids[i])
++        _walk(kids[i], fn)
++    }
++}
++
++function removableGroups(feedList) {
++    var groups = []
++    _walk(feedList, function (c) {
++        if (typeof c.removeAllNotifications === "function"
++                && c.userRemovable === true && c.height > 0) {
++            groups.push(c)
++        }
++    })
++    return groups
++}
++
++function hasRemovable(feedList) {
++    return removableGroups(feedList).length > 0
++}
++
++function clearAll(feedList) {
++    var groups = removableGroups(feedList)
++    for (var i = 0; i < groups.length; i++) {
++        groups[i].removeAllNotifications()
++    }
++}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
 --- a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
 +++ b/usr/share/lipstick-jolla-home-qt5/notifications/NotificationListView.qml
@@ -2140,7 +2199,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
-@@ -0,0 +1,314 @@
+@@ -0,0 +1,357 @@
 +/*
 + * ada-home-sailfish: notifications on the second page (Settings → Layout →
 + * Notifications: Second page), below weather and calendar, built like the
@@ -2159,6 +2218,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +import com.jolla.lipstick 0.1
 +import "../notifications" as Notifications
 +import "../eventsview"
++import "../notifications/AdaFeeds.js" as AdaFeeds
 +
 +Item {
 +    id: root
@@ -2171,7 +2231,36 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +    // Same as in EventsViewList: remove mode only when something can be removed
 +    readonly property bool _housekeepingAllowed: (notificationListModel.populated
 +                                                  && notificationList.hasRemovableNotifications)
-+                                                 || feedsList.hasRemovableNotifications
++                                                 || _feedsRemovable
++    // Feeds with something removable (see AdaFeeds.js)
++    property bool _feedsRemovable
++
++    // Long-press only starts remove mode when the events layer allows it. The
++    // stock Events list sets that from its own (feed-blind, see AdaFeeds.js)
++    // flags, so allow it here while this page shows removable feeds, and set
++    // it back to the stock rule (removable notifications) afterwards.
++    readonly property bool _wantHousekeepingAllowed: pageVisible && allowed && _feedsRemovable
++    property bool _overrodeHousekeepingAllowed
++    on_WantHousekeepingAllowedChanged: {
++        var layer = Lipstick.compositor.eventsLayer
++        if (_wantHousekeepingAllowed) {
++            if (!layer.housekeepingAllowed) {
++                layer.housekeepingAllowed = true
++                _overrodeHousekeepingAllowed = true
++            }
++        } else if (_overrodeHousekeepingAllowed) {
++            _overrodeHousekeepingAllowed = false
++            layer.housekeepingAllowed = notificationListModel.populated
++                    && notificationList.hasRemovableNotifications
++        }
++    }
++
++    Timer {
++        id: feedScanTimer
++
++        interval: 100
++        onTriggered: root._feedsRemovable = AdaFeeds.hasRemovable(feedsList)
++    }
 +
 +    // The page's flickable, how far it is scrolled past this item's top, and
 +    // the status bar height (the sticky header sits below it)
@@ -2226,6 +2315,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +    visible: allowed
 +
 +    onPageVisibleChanged: {
++        feedScanTimer.restart()
 +        if (!pageVisible) {
 +            // Same as the Events view does when it is left
 +            var ids = []
@@ -2238,6 +2328,17 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +            notificationList.displayedIds = {}
 +            Lipstick.compositor.eventsLayer.setHousekeeping(false)
 +        }
++    }
++
++    // The stock feed list calls eventsWindowLoader.loadTranslations(provider),
++    // an object lipstick only provides to the Events window. Translations are
++    // process-wide and the (hidden) stock Events list loads them, so an empty
++    // stand-in is enough here; without it the feed list stops before adding
++    // any account.
++    QtObject {
++        id: eventsWindowLoader
++
++        function loadTranslations(providerName) {}
 +    }
 +
 +    JollaNotificationGroupModel {
@@ -2356,6 +2457,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +                    width: parent.width
 +                    viewVisible: root.pageVisible && root.allowed
 +                    onExpanded: root._scrollToExpandingItem(item, itemYOffset)
++                    onHeightChanged: feedScanTimer.restart()
 +                }
 +
 +                // Same as in the Top menu. Part of the section, so the sticky
@@ -2426,7 +2528,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +                    icon.source: "image://theme/icon-splus-delete"
 +                    onClicked: {
 +                        notificationList.removeAll()
-+                        feedsList.removeAllNotifications()
++                        AdaFeeds.clearAll(feedsList)
 +                        Lipstick.compositor.eventsLayer.setHousekeeping(false)
 +                    }
 +                }
@@ -2916,7 +3018,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
-@@ -0,0 +1,161 @@
+@@ -0,0 +1,272 @@
 +/*
 + * ada-home-sailfish: notification list inside the Top menu.
 + * Reuses the stock notification components from ../notifications.
@@ -2930,6 +3032,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +import com.jolla.lipstick 0.1
 +import Nemo.Configuration 1.0
 +import "../notifications" as Notifications
++import "../eventsview"
++import "../notifications/AdaFeeds.js" as AdaFeeds
 +
 +Column {
 +    id: root
@@ -2938,7 +3042,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +    // Only show notification content when the device is unlocked
 +    // (the Top menu can also be opened on the lock screen).
 +    readonly property bool allowed: Desktop.deviceLockState === DeviceLock.Unlocked
-+    readonly property bool hasNotifications: notificationList.count > 0
++    readonly property bool hasNotifications: notificationList.count > 0 || feedsList.hasVisibleFeeds
 +    // Settings → Layout → Notifications: Second page leaves only the gear here
 +    readonly property bool showNotifications: placeConfig.value !== 1
 +
@@ -3018,10 +3122,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +                    rightMargin: Theme.paddingMedium
 +                    verticalCenter: parent.verticalCenter
 +                }
-+                visible: root.allowed && root.showNotifications && notificationList.hasRemovableNotifications
++                visible: root.allowed && root.showNotifications
++                         && (notificationList.hasRemovableNotifications || root._feedsRemovable)
 +                preferredWidth: Theme.buttonWidthExtraSmall
 +                text: "Clear all"
-+                onClicked: notificationList.removeAll()
++                onClicked: {
++                    notificationList.removeAll()
++                    AdaFeeds.clearAll(feedsList)
++                }
 +            }
 +
 +            IconButton {
@@ -3047,6 +3155,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +        width: parent.width - 2 * Theme.horizontalPageMargin
 +        height: visible ? implicitHeight + Theme.paddingLarge : 0
 +        visible: root.allowed && root.showNotifications && !root.hasNotifications
++                 && !feedsList.showingRemovableContent
 +        text: "No notifications"
 +        color: Theme.secondaryHighlightColor
 +        font.pixelSize: Theme.fontSizeSmall
@@ -3070,6 +3179,110 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +            model: root.showNotifications && notificationModel.populated ? notificationModel : null
 +            viewVisible: root.menuExposed && root.allowed
 +            directSwipe: true
++        }
++    }
++
++    // The stock feed list calls eventsWindowLoader.loadTranslations(provider),
++    // an object lipstick only provides to the Events window. Translations are
++    // process-wide and the (hidden) stock Events list loads them, so an empty
++    // stand-in is enough here; without it the feed list stops before adding
++    // any account.
++    QtObject {
++        id: eventsWindowLoader
++
++        function loadTranslations(providerName) {}
++    }
++
++    // Event feeds of accounts (Mastodon, Nextcloud), below the notifications
++    // as on the Events page
++    EventFeedList {
++        id: feedsList
++
++        width: parent.width
++        height: visible ? implicitHeight : 0
++        visible: root.allowed && root.showNotifications
++        viewVisible: root.menuExposed && root.allowed && root.showNotifications
++        onHeightChanged: feedScanTimer.restart()
++    }
++
++    // Swipe feed items away directly, like the notifications above. The feed
++    // items come from other packages (eventfeed plugins), so instead of
++    // patching them, every item below feedsList with draggable and
++    // userRemovable (stock: draggable = housekeeping && userRemovable) gets a
++    // Binding draggable = userRemovable while the Top menu is open. When it
++    // closes the Bindings switch off and Qt gives back the stock bindings.
++    readonly property bool _feedsDirectSwipe: menuExposed && allowed && showNotifications
++    property var _feedTargets: []
++    // Feeds with something removable (see AdaFeeds.js)
++    property bool _feedsRemovable
++    property var _feedBindings: []
++
++    on_FeedsDirectSwipeChanged: {
++        if (_feedsDirectSwipe) {
++            feedScanTimer.restart()
++        } else {
++            feedCleanupTimer.restart()
++        }
++    }
++
++    function _scanFeedItems(item) {
++        var kids = item.children
++        if (!kids) {
++            return
++        }
++        for (var i = 0; i < kids.length; i++) {
++            var c = kids[i]
++            if (c.draggable !== undefined && c.userRemovable !== undefined
++                    && _feedTargets.indexOf(c) < 0) {
++                _feedTargets.push(c)
++                _feedBindings.push(feedSwipeBinding.createObject(root, { "item": c }))
++            }
++            _scanFeedItems(c)
++        }
++    }
++
++    Component {
++        id: feedSwipeBinding
++
++        Binding {
++            // Binding.target can't be bound to (no change signal); use our own
++            property var item
++
++            target: item
++            property: "draggable"
++            value: !!item && item.userRemovable
++            when: root._feedsDirectSwipe && !!item
++        }
++    }
++
++    Timer {
++        id: feedScanTimer
++
++        interval: 100
++        onTriggered: {
++            root._feedsRemovable = feedsList.visible && AdaFeeds.hasRemovable(feedsList)
++            if (root._feedsDirectSwipe) {
++                root._scanFeedItems(feedsList)
++            }
++        }
++    }
++
++    // After the Bindings have switched off (stock bindings back), drop them
++    Timer {
++        id: feedCleanupTimer
++
++        interval: 100
++        onTriggered: {
++            if (root._feedsDirectSwipe) {
++                return
++            }
++            for (var i = 0; i < root._feedBindings.length; i++) {
++                if (root._feedBindings[i]) {
++                    root._feedBindings[i].destroy()
++                }
++            }
++            root._feedBindings = []
++            root._feedTargets = []
 +        }
 +    }
 +
