@@ -2222,7 +2222,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +    }
 +
 +    width: parent ? parent.width : 0
-+    height: allowed ? notificationsArea.height + noNotificationsLabel.height : 0
++    height: allowed ? notificationsArea.height : 0
 +    visible: allowed
 +
 +    onPageVisibleChanged: {
@@ -2286,7 +2286,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +
 +        width: parent.width
 +        height: headerHeight + systemUpdateList.contentHeight + notificationList.contentHeight
-+                + feedsList.height
++                + feedsList.height + noNotificationsLabel.height
 +        // The lists below are very tall; keep their touch area to the visible
 +        // part so the covers underneath get their taps
 +        clip: true
@@ -2356,6 +2356,22 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +                    width: parent.width
 +                    viewVisible: root.pageVisible && root.allowed
 +                    onExpanded: root._scrollToExpandingItem(item, itemYOffset)
++                }
++
++                // Same as in the Top menu. Part of the section, so the sticky
++                // header stays until it has scrolled away too.
++                Label {
++                    id: noNotificationsLabel
++
++                    y: feedsList.y + feedsList.height
++                    x: Theme.horizontalPageMargin
++                    width: parent.width - 2 * Theme.horizontalPageMargin
++                    height: visible ? implicitHeight + Theme.paddingLarge : 0
++                    visible: !root.hasNotifications && notificationList.contentHeight < 1
++                             && !feedsList.showingRemovableContent
++                    text: "No notifications"
++                    color: Theme.secondaryHighlightColor
++                    font.pixelSize: Theme.fontSizeSmall
 +                }
 +            }
 +        }
@@ -2437,27 +2453,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +            }
 +        }
 +    }
-+
-+    InfoLabel {
-+        id: noNotificationsLabel
-+
-+        y: notificationsArea.height
-+        x: Theme.horizontalPageMargin
-+        width: parent.width - 2 * Theme.horizontalPageMargin
-+        opacity: !root.hasNotifications && notificationList.contentHeight < 1
-+                 && !feedsList.showingRemovableContent ? 1.0 : 0.0
-+
-+        //% "You don't have any notifications right now"
-+        text: qsTrId("lipstick-jolla-home-la-you_dont_have_any_notifications")
-+        height: opacity > 0 ? implicitHeight + Theme.paddingLarge : 0
-+
-+        Behavior on opacity { FadeAnimation { duration: 300 } }
-+    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
-@@ -0,0 +1,75 @@
+@@ -0,0 +1,100 @@
 +/*
 + * ada-home-sailfish: the Events widgets (weather, calendar) above the app covers.
 + * Loads the same widgets as the Events view, from the same registry
@@ -2476,6 +2476,8 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +
 +    // The stock widgets read this name from the page that loads them
 +    property bool eventsViewVisible
++    // Top of the visible page area in this item's coordinates (sticky headers)
++    property real viewTop
 +
 +    spacing: Theme.paddingSmall
 +
@@ -2495,42 +2497,150 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/s
 +    Repeater {
 +        model: widgetsModel
 +
-+        delegate: Column {
++        delegate: Item {
++            id: section
++
 +            readonly property bool isWeather: model.path.indexOf("/weather/") !== -1
-+
-+            width: root.width
-+
++            readonly property bool isCalendar: model.path.indexOf("/calendar/") !== -1
 +            // Section headers for the weather and the calendar (registry paths
 +            // .../eventsview/weather/... and .../calendar/...), only when the widget
 +            // has loaded and shows something. The weather loader keeps a small
 +            // height even when empty, so it counts once its inner item exists.
-+            SectionHeader {
-+                readonly property bool isCalendar: model.path.indexOf("/calendar/") !== -1
++            readonly property bool headerShown: widgetLoader.status === Loader.Ready && !!widgetLoader.item
++                                                && (isWeather ? weatherHeaderConfig.value && !!widgetLoader.item.item
++                                                              : isCalendar && widgetLoader.height > 0)
 +
-+                visible: widgetLoader.status === Loader.Ready && !!widgetLoader.item
-+                         && (isWeather ? weatherHeaderConfig.value && !!widgetLoader.item.item
-+                                       : isCalendar && widgetLoader.height > 0)
-+                text: isWeather ? "Weather" : "Calendar"
++            width: root.width
++            height: contentClip.y + contentClip.height
++
++            StickySectionHeader {
++                id: sectionHeader
++
++                visible: section.headerShown
++                text: section.isWeather ? "Weather" : "Calendar"
++                viewTop: root.viewTop - section.y
++                flowY: 0
++                sectionBottom: section.height
 +            }
 +
-+            Loader {
-+                id: widgetLoader
++            StickyClip {
++                id: contentClip
 +
++                y: section.headerShown ? sectionHeader.flowHeight : 0
 +                width: parent.width
-+                visible: active
-+                active: model.enabled
-+                source: model.path
-+            }
++                height: contentColumn.height
++                clipTop: sectionHeader.sticky ? sectionHeader.lowerEdge - y : 0
 +
-+            // Active alarms right below the weather (also when the weather
-+            // widget itself is switched off)
-+            Loader {
-+                width: parent.width
-+                active: isWeather
-+                visible: active && item && item.count > 0
-+                source: "CoversAlarms.qml"
++                Column {
++                    id: contentColumn
++
++                    width: section.width
++
++                    Loader {
++                        id: widgetLoader
++
++                        width: parent.width
++                        visible: active
++                        active: model.enabled
++                        source: model.path
++                    }
++
++                    // Active alarms right below the weather (also when the weather
++                    // widget itself is switched off)
++                    Loader {
++                        width: parent.width
++                        active: section.isWeather
++                        visible: active && item && item.count > 0
++                        source: "CoversAlarms.qml"
++                    }
++                }
 +            }
 +        }
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/StickyClip.qml b/usr/share/lipstick-jolla-home-qt5/switcher/StickyClip.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/switcher/StickyClip.qml
+@@ -0,0 +1,32 @@
++/*
++ * ada-home-sailfish: hides the part of its content above clipTop (in its own
++ * coordinates), so content scrolls away under a sticky section header instead
++ * of showing through it. Children are positioned as if in this item.
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++
++Item {
++    id: root
++
++    property real clipTop
++    default property alias content: inner.data
++
++    Item {
++        id: clipRect
++
++        y: Math.max(0, Math.min(root.height, root.clipTop))
++        width: root.width
++        height: root.height - y
++        clip: root.clipTop > 0
++
++        Item {
++            id: inner
++
++            y: -clipRect.y
++            width: root.width
++            height: root.height
++        }
++    }
++}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/StickySectionHeader.qml b/usr/share/lipstick-jolla-home-qt5/switcher/StickySectionHeader.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/switcher/StickySectionHeader.qml
+@@ -0,0 +1,45 @@
++/*
++ * ada-home-sailfish: section header on the second page that sticks to the
++ * top of the screen while its section scrolls by, and is pushed away by the
++ * next section. Takes flowHeight in the layout; while sticky it gets the
++ * stock sticky header's extra top padding (rounded corners, camera cutout).
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++
++Item {
++    id: root
++
++    property alias text: header.text
++    // All in the parent's coordinates: top of the visible page area, where the
++    // header sits when not sticky, and where its section ends
++    property real viewTop
++    property real flowY
++    property real sectionBottom
++
++    readonly property bool sticky: visible && viewTop > flowY
++    readonly property real flowHeight: header.height
++    readonly property real topPadding: {
++        if (!sticky || !(desktop.orientation & Orientation.PortraitMask)) {
++            return 0
++        }
++        var biggestCorner = Math.max(Screen.topLeftCorner.radius, Screen.topRightCorner.radius,
++                                     Screen.bottomLeftCorner.radius, Screen.bottomRightCorner.radius)
++        return Math.max(biggestCorner * 0.7, Screen.topCutout.height, 0)
++    }
++    // Lower edge of the header: content above it is hidden (see StickyClip)
++    readonly property real lowerEdge: y + height
++
++    y: sticky ? Math.max(flowY, Math.min(viewTop, sectionBottom - height)) : flowY
++    z: 1
++    width: parent ? parent.width : 0
++    height: header.height + topPadding
++
++    SectionHeader {
++        id: header
++
++        anchors.bottom: parent.bottom
 +    }
 +}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml
@@ -2622,10 +2732,17 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
          return windowFound ? modelIdx : -1
      }
  
-@@ -382,12 +440,62 @@
+@@ -382,12 +440,73 @@
          visible: Lipstick.compositor.switcherLayer.scale === 1.0 && switcherRoot.contentHeight > switcherRoot.height
      }
  
++    // ada-home-sailfish: top of the visible page area in content coordinates,
++    // for the sticky section headers. The status bar slides away as the page
++    // scrolls (SwitcherLayer.statusOffset), so only its remaining part counts.
++    readonly property real _adaStatusBarBottom: Lipstick.compositor.homeLayer.statusBar.baseY
++                                                + Lipstick.compositor.homeLayer.statusBar.height
++    readonly property real _adaViewTop: contentY + Math.max(0, _adaStatusBarBottom - contentY)
++
 +    // ada-home-sailfish: weather and calendar above the covers
 +    CoversWidgets {
 +        id: coversWidgets
@@ -2633,6 +2750,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 +        y: switcherGrid.baseY
 +        width: switcherRoot.width
 +        eventsViewVisible: switcherRoot.visible
++        viewTop: switcherRoot._adaViewTop - y
 +    }
 +
 +    // ada-home-sailfish: Settings → Layout → Notifications: Second page
@@ -2664,13 +2782,16 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 +        }
 +    }
 +
-+    // ada-home-sailfish: header above the covers, only while apps are running
-+    SectionHeader {
++    // ada-home-sailfish: header above the covers, only while apps are running;
++    // sticks to the top while the covers scroll by
++    StickySectionHeader {
 +        id: runningAppsHeader
 +
-+        y: coversNotifications.y + coversNotifications.contentHeight
 +        visible: switcherRoot.count > 0
 +        text: "Running apps"
++        viewTop: switcherRoot._adaViewTop
++        flowY: coversNotifications.y + coversNotifications.contentHeight
++        sectionBottom: switcherWrapper.y + switcherGrid.y + switcherGrid.implicitHeight
 +    }
 +
      MouseArea {
@@ -2680,13 +2801,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
  
 -        y: switcherGrid.baseY
 +        y: runningAppsHeader.visible
-+           ? runningAppsHeader.y + runningAppsHeader.height
++           ? runningAppsHeader.flowY + runningAppsHeader.flowHeight
 +           : coversNotifications.y + coversNotifications.contentHeight
 +             + (coversWidgets.height + coversNotifications.contentHeight > 0 ? Theme.paddingLarge : 0)
          height: switcherGrid.implicitHeight <= switcherRoot.height - y
                  ? switcherRoot.height - y
                  : switcherGrid.implicitHeight + switcherGrid.rowSpacing - 1
-@@ -410,7 +518,8 @@
+@@ -410,7 +529,8 @@
              readonly property int largeItemCount: largeColumns * largeRows
              property QtObject ngfEffect
  
@@ -2696,7 +2817,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
              statusBarHeight: Lipstick.compositor.multitaskingHome ? switcherRoot.statusBarHeight : 0
  
              function updateColumns() {
-@@ -426,7 +535,8 @@
+@@ -426,7 +546,8 @@
  
              function doUpdateColumns() {
                  var cols = switcherGrid.largeColumns
@@ -2706,7 +2827,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                      cols = switcherGrid.smallColumns
                  if (cols !== switcherGrid.columns) {
                      scrollAnimation.stop()
-@@ -454,7 +564,8 @@
+@@ -454,7 +575,8 @@
                  ScriptAction {
                      script: {
                          var cols = switcherGrid.largeColumns
@@ -2716,7 +2837,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                              cols = switcherGrid.smallColumns
                          switcherGrid.columns = cols
                          switcherGrid.coverSize = switcherGrid.columns == switcherGrid.largeColumns
-@@ -558,6 +669,14 @@
+@@ -558,6 +680,14 @@
                                  Lipstick.compositor.launcherLayer.hide()
                              }
                              if (running) {
@@ -2731,7 +2852,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                                  switcherRoot.minimizeLaunchingWindows()
                                  minimized = false
                                  Lipstick.compositor.windowToFront(windowId)
-@@ -639,7 +758,8 @@
+@@ -639,7 +769,8 @@
              Binding {
                  target: Lipstick.compositor.homeLayer
                  property: "statusMargin"
@@ -2741,6 +2862,42 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
              }
  
              Component.onCompleted: {
+@@ -652,13 +783,31 @@
+         // We use a separate inner item here instead of reparenting to switcherWrapper
+         // to allow the column change animation to modify its opacity without interfering
+         // with any opacity applied to switcherWrapper.
++        // ada-home-sailfish: covers scroll away under the sticky Running apps
++        // header instead of showing through it (same as StickyClip)
+         Item {
+-            id: switcherItems
++            id: coversClip
++
++            readonly property real clipTop: runningAppsHeader.sticky
++                                            ? runningAppsHeader.lowerEdge - switcherWrapper.y : 0
+ 
+-            anchors.fill: switcherGrid
+-            // MouseArea doesn't propagate the enabled state to children, so do it manually
+-            // https://bugreports.qt-project.org/browse/QTBUG-38364
++            y: Math.max(0, Math.min(parent.height, clipTop))
++            width: parent.width
++            height: parent.height - y
++            clip: clipTop > 0
+             enabled: parent.enabled
++
++            Item {
++                id: switcherItems
++
++                x: switcherGrid.x
++                y: switcherGrid.y - coversClip.y
++                width: switcherGrid.width
++                height: switcherGrid.height
++                // MouseArea doesn't propagate the enabled state to children, so do it manually
++                // https://bugreports.qt-project.org/browse/QTBUG-38364
++                enabled: parent.enabled
++            }
+         }
+ 
+         property real pressPos
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml

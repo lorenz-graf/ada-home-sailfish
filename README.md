@@ -35,12 +35,12 @@ The screenshots use stock Sailfish ambiences; notifications, calendar entries, a
 
 <img src="screenshots/second-page.png" width="24%" alt="Second page: weather, alarms, calendar, running apps">
 
-Swipe in from the left or right screen edge. Each section has a section header and only shows when it has something to show:
+Swipe in from the left or right screen edge. Each section has a section header and only shows when it has something to show. While you scroll, the header of the current section sticks to the top of the screen:
 
 - **Weather** (the header is optional: Settings → Layout → Weather header)
 - **Alarms:** all alarms that are switched on, with time, name and the days they repeat on ("Every day", "Weekdays", "Weekend" or short day names; nothing for a one-time alarm). Alarms that won't go off within the next 24 hours are dimmed. Tap opens the clock app chosen for the Home clock. This list also shows when the weather widget is off
 - **Calendar**
-- **Notifications** (only with Settings → Layout → Notifications: Second page): as on the stock Events page, including system updates and the feeds of accounts like Mastodon and Nextcloud. Long-press a notification for remove mode: swipe single ones away, or **Clear all** / **Exit** in the header. The header sticks to the top while you scroll through the notifications, and expanding a group scrolls it into view
+- **Notifications** (only with Settings → Layout → Notifications: Second page): as on the stock Events page, including system updates and the feeds of accounts like Mastodon and Nextcloud. Long-press a notification for remove mode: swipe single ones away, or **Clear all** / **Exit** in the header. Expanding a group scrolls it into view. Shows "No notifications" when empty
 - **Running apps:** the covers, small and 3 per row by default (Settings → Layout → Always small covers; off = stock behaviour), the most recently used app first (Settings → Layout → Recent apps first; off = stock order). Long-press a cover for **Close all**, as in stock Sailfish
 
 The background is dimmed on this page, not on Home.
