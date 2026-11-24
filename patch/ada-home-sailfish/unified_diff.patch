@@ -2140,7 +2140,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
-@@ -0,0 +1,313 @@
+@@ -0,0 +1,314 @@
 +/*
 + * ada-home-sailfish: notifications on the second page (Settings → Layout →
 + * Notifications: Second page), below weather and calendar, built like the
@@ -2370,6 +2370,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b
 +                    visible: !root.hasNotifications && notificationList.contentHeight < 1
 +                             && !feedsList.showingRemovableContent
 +                    text: "No notifications"
++                    horizontalAlignment: Text.AlignHCenter
 +                    color: Theme.secondaryHighlightColor
 +                    font.pixelSize: Theme.fontSizeSmall
 +                }
@@ -2732,7 +2733,21 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
          return windowFound ? modelIdx : -1
      }
  
-@@ -382,12 +440,73 @@
+@@ -342,6 +400,13 @@
+             if (columnChangeAnimation.running || !item) {
+                 return
+             }
++            // ada-home-sailfish: with Recent apps first the app's cover moves to
++            // the top anyway, and the page goes back to the top when hidden;
++            // scrolling to where a new cover first lands (the end) left the
++            // page scrolled to the bottom
++            if (recentFirstConfig.value && !switcherRoot.visible) {
++                return
++            }
+ 
+             if (item.y < contentY) {
+                 scrollAnimation.to = item.y
+@@ -382,12 +447,73 @@
          visible: Lipstick.compositor.switcherLayer.scale === 1.0 && switcherRoot.contentHeight > switcherRoot.height
      }
  
@@ -2807,7 +2822,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
          height: switcherGrid.implicitHeight <= switcherRoot.height - y
                  ? switcherRoot.height - y
                  : switcherGrid.implicitHeight + switcherGrid.rowSpacing - 1
-@@ -410,7 +529,8 @@
+@@ -410,7 +536,8 @@
              readonly property int largeItemCount: largeColumns * largeRows
              property QtObject ngfEffect
  
@@ -2817,7 +2832,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
              statusBarHeight: Lipstick.compositor.multitaskingHome ? switcherRoot.statusBarHeight : 0
  
              function updateColumns() {
-@@ -426,7 +546,8 @@
+@@ -426,7 +553,8 @@
  
              function doUpdateColumns() {
                  var cols = switcherGrid.largeColumns
@@ -2827,7 +2842,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                      cols = switcherGrid.smallColumns
                  if (cols !== switcherGrid.columns) {
                      scrollAnimation.stop()
-@@ -454,7 +575,8 @@
+@@ -454,7 +582,8 @@
                  ScriptAction {
                      script: {
                          var cols = switcherGrid.largeColumns
@@ -2837,7 +2852,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                              cols = switcherGrid.smallColumns
                          switcherGrid.columns = cols
                          switcherGrid.coverSize = switcherGrid.columns == switcherGrid.largeColumns
-@@ -558,6 +680,14 @@
+@@ -558,6 +687,14 @@
                                  Lipstick.compositor.launcherLayer.hide()
                              }
                              if (running) {
@@ -2852,7 +2867,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                                  switcherRoot.minimizeLaunchingWindows()
                                  minimized = false
                                  Lipstick.compositor.windowToFront(windowId)
-@@ -639,7 +769,8 @@
+@@ -639,7 +776,8 @@
              Binding {
                  target: Lipstick.compositor.homeLayer
                  property: "statusMargin"
@@ -2862,7 +2877,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
              }
  
              Component.onCompleted: {
-@@ -652,13 +783,31 @@
+@@ -652,13 +790,31 @@
          // We use a separate inner item here instead of reparenting to switcherWrapper
          // to allow the column change animation to modify its opacity without interfering
          // with any opacity applied to switcherWrapper.
