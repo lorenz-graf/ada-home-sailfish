@@ -8,7 +8,7 @@ A Patchmanager patch for **Sailfish OS** that turns the homescreen into a minima
 |---|---|---|
 | Home (after leaving an app, unlocking, the home key) | Covers of running apps | Big clock and date, up to 8 apps as plain text |
 | Second page (swipe in from the left or right edge) | Events: notifications, weather, calendar | Weather, active Alarms, Calendar and Running apps (section headers, small covers 3 per row, dimmed background) |
-| Notifications | Events page | Top menu (pull down from the top), below the toggles |
+| Notifications | Events page | Top menu (pull down from the top), below the toggles; or on the second page, as in stock (Settings → Layout → Notifications) |
 
 Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 
@@ -40,6 +40,7 @@ Swipe in from the left or right screen edge. Each section has a section header a
 - **Weather** (the header is optional: Settings → Layout → Weather header)
 - **Alarms:** all alarms that are switched on, with time, name and the days they repeat on ("Every day", "Weekdays", "Weekend" or short day names; nothing for a one-time alarm). Alarms that won't go off within the next 24 hours are dimmed. Tap opens the clock app chosen for the Home clock. This list also shows when the weather widget is off
 - **Calendar**
+- **Notifications** (only with Settings → Layout → Notifications: Second page): the stock Events notifications section, with its header button for remove mode (**Clear all**, **Exit**); long-press a notification, then swipe it away. Event feeds of social accounts aren't shown
 - **Running apps:** the covers, small and 3 per row by default (Settings → Layout → Always small covers; off = stock behaviour), the most recently used app first (Settings → Layout → Recent apps first; off = stock order). Long-press a cover for **Close all**, as in stock Sailfish
 
 The background is dimmed on this page, not on Home.
@@ -76,6 +77,7 @@ All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 | | Always small covers (running apps 3 per row) | On | `small_covers` |
 | | Recent apps first (running apps sorted by last use) | On | `recent_first` |
 | | Weather header (on the second page) | On | `weather_header` |
+| | Notifications (Top menu / Second page) | Top menu | `notifications_place` (0 / 1) |
 | Appearance | Text size | 1.0 | `text_scale` |
 | | Bold font | Off | `bold` |
 | | Text shadow (Off / Small / Medium / Large) | Small | `shadow_level` |
@@ -95,7 +97,7 @@ Chosen apps are stored as `.desktop` file paths: `slot_apps`, `slot_names` (rena
 
 <img src="screenshots/topmenu.png" width="24%" alt="Top menu with notifications">
 
-- A **Notifications** section below the toggles, with **Clear all**. Notifications can be swiped away directly (stock Sailfish needs a long-press first). Hidden while the device is locked. While you pull the menu down, the section is uncovered from the top (newest first) as the menu's edge moves down.
+- A **Notifications** section below the toggles, with **Clear all** (unless they're set to the second page). Notifications can be swiped away directly (stock Sailfish needs a long-press first). Hidden while the device is locked. While you pull the menu down, the section is uncovered from the top (newest first) as the menu's edge moves down.
 - The big lock button at the top is gone (the power key locks). Long-pressing the power key still shows power off / reboot there.
 - The gear (Organize, Top menu settings) sits at the right end of the Notifications line instead of its own row.
 
@@ -191,7 +193,7 @@ Patchmanager serves patched copies of the homescreen's QML (`/usr/share/lipstick
 - handles link hand-offs between Android apps (`compositor.qml`): when the app on screen lowers its own window, it shows the covers page, and brings forward the app AppSupport reports in its `appShown`/`appOpened`/`appClosed` D-Bus signals (see [Links between Android apps](#links-between-android-apps))
 - adds the Home page (`eventsview/HomeFavourites.qml`, `HomeAppPicker.qml`, `HomeSettings*.qml`, `HomeTextShadow.qml`) to the Events window (`eventsview/EventsWindow.qml`); the stock Events list stays for the lock screen. The loading screen is part of the Home page and follows the covers page's own launch tracking
 - adds weather, active alarms and calendar above the covers (`switcher/CoversWidgets.qml`, `switcher/CoversAlarms.qml`, `switcher/Switcher.qml`)
-- adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`)
+- adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`), or with the stock header to the second page (`switcher/CoversNotifications.qml`)
 - leaves the status bar files alone: the Home page sets the status bar's colour, hides its clock (and optionally the whole bar) while Home is shown, and optionally hides the alarm bell, all at runtime, so status bar patches still apply. If a patch rebuilds the status bar so the clock or the bell can't be found, they just stay visible. The lock screen has its own status bar and isn't changed
 
 ## Build

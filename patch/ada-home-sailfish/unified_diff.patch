@@ -1387,7 +1387,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,274 @@
+@@ -0,0 +1,283 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1427,6 +1427,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: hideStatusClock; key: settings._path + "hide_status_clock"; defaultValue: true }
 +    ConfigurationValue { id: weatherHeader; key: settings._path + "weather_header"; defaultValue: true }
 +    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
++    ConfigurationValue { id: notificationsPlace; key: settings._path + "notifications_place"; defaultValue: 0 }
 +    ConfigurationValue { id: recentFirst; key: settings._path + "recent_first"; defaultValue: true }
 +    ConfigurationValue { id: appsGap; key: settings._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSide; key: settings._path + "margin_side"; defaultValue: 0 }
@@ -1572,6 +1573,14 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                description: "Section header above the weather on the second page"
 +                checked: weatherHeader.value
 +                onToggled: weatherHeader.value = !weatherHeader.value
++            }
++
++            HomeSettingsChoice {
++                label: "Notifications"
++                // Stored values: 0 = Top menu, 1 = second page
++                choices: ["Top menu", "Second page"]
++                value: notificationsPlace.value
++                onChosen: notificationsPlace.value = newValue
 +            }
 +
 +            SectionHeader { text: "Appearance" }
@@ -2107,6 +2116,171 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/sh
 +        }
 +    }
 +}
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversNotifications.qml
+@@ -0,0 +1,161 @@
++/*
++ * ada-home-sailfish: notifications on the second page (Settings → Layout →
++ * Notifications: Second page), below weather and calendar, built like the
++ * stock Events page (eventsview/EventsViewList.qml): the stock header with
++ * its remove-mode button (Clear all / Exit), system updates first, long-press
++ * for remove mode, tap outside to leave it. Event feeds (social accounts) are
++ * left out.
++ * Reuses the stock notification components from ../notifications.
++ * License: BSD-3-Clause, see LICENSE in the ada-home-sailfish project
++ */
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import org.nemomobile.lipstick 0.1
++import org.nemomobile.devicelock 1.0
++import com.jolla.lipstick 0.1
++import "../notifications" as Notifications
++
++Item {
++    id: root
++
++    // The second page is on screen
++    property bool pageVisible
++    readonly property bool allowed: Desktop.deviceLockState === DeviceLock.Unlocked
++    readonly property bool hasNotifications: notificationList.count > 0 || systemUpdateList.count > 0
++    // Read by the stock header (remove-mode button), same as in EventsViewList
++    readonly property bool _housekeepingAllowed: notificationListModel.populated
++                                                 && notificationList.hasRemovableNotifications
++
++    width: parent ? parent.width : 0
++    height: allowed ? notificationsArea.height + noNotificationsLabel.height : 0
++    visible: allowed
++
++    onPageVisibleChanged: {
++        if (!pageVisible) {
++            // Same as the Events view does when it is left
++            var ids = []
++            for (var id in notificationList.displayedIds) {
++                ids.push(id)
++            }
++            if (ids.length > 0) {
++                notificationListModel.markAsDisplayed(ids)
++            }
++            notificationList.displayedIds = {}
++            Lipstick.compositor.eventsLayer.setHousekeeping(false)
++        }
++    }
++
++    JollaNotificationGroupModel {
++        id: notificationListModel
++
++        function markAsDisplayed(ids) {
++            sourceModel.markAsDisplayed(ids)
++        }
++
++        groupProperty: "disambiguatedAppName"
++        sourceModel: JollaNotificationListModel {
++            filters: [ {
++                    "property": "category",
++                    "comparator": "!match",
++                    "value": "^x-nemo.system-update"
++                }
++            ]
++        }
++    }
++
++    JollaNotificationGroupModel {
++        id: systemUpdateListModel
++
++        groupProperty: "disambiguatedAppName"
++        sourceModel: JollaNotificationListModel {
++            filters: [ {
++                    "property": "category",
++                    "comparator": "match",
++                    "value": "^x-nemo.system-update"
++                }
++            ]
++        }
++    }
++
++    // The stock header calls feedsList.* (event feeds); none here
++    QtObject {
++        id: feedsList
++
++        readonly property bool showingRemovableContent: false
++        function findMatchingRemovableItems(filterFunc, matchingResults) { return true }
++        function removeAllNotifications() {}
++    }
++
++    Item {
++        id: notificationsArea
++
++        width: parent.width
++        height: notificationHeader.height + systemUpdateList.contentHeight + notificationList.contentHeight
++        // The lists below are very tall; keep their touch area to the visible
++        // part so the covers underneath get their taps
++        clip: true
++
++        InverseMouseArea {
++            anchors.fill: parent
++            enabled: Lipstick.compositor.eventsLayer.housekeeping && !notificationHeader.down
++            onClickedOutside: Lipstick.compositor.eventsLayer.setHousekeeping(false)
++        }
++
++        MouseArea {
++            anchors.fill: parent
++            enabled: Lipstick.compositor.eventsLayer.housekeepingAllowed
++            onPressAndHold: {
++                if (!Lipstick.compositor.eventsLayer.housekeeping)
++                    Lipstick.compositor.eventsLayer.setHousekeeping(true)
++            }
++            onClicked: Lipstick.compositor.eventsLayer.setHousekeeping(false)
++        }
++
++        // Finds notificationList and feedsList by id from this file
++        Notifications.NotificationHeader {
++            id: notificationHeader
++
++            width: parent.width
++        }
++
++        Notifications.NotificationListView {
++            id: systemUpdateList
++
++            y: notificationHeader.height
++            // Same trick as the Events view: a tall view is fully populated
++            // without binding height to contentHeight.
++            height: Screen.height * 1000
++            model: systemUpdateListModel.populated ? systemUpdateListModel : null
++            viewVisible: root.pageVisible && root.allowed
++        }
++
++        Notifications.NotificationListView {
++            id: notificationList
++
++            property var displayedIds: ({})
++
++            onDisplayed: displayedIds[id] = true
++
++            y: systemUpdateList.y + systemUpdateList.contentHeight
++            height: Screen.height * 1000
++            model: notificationListModel.populated ? notificationListModel : null
++            viewVisible: root.pageVisible && root.allowed
++        }
++    }
++
++    InfoLabel {
++        id: noNotificationsLabel
++
++        y: notificationsArea.height
++        x: Theme.horizontalPageMargin
++        width: parent.width - 2 * Theme.horizontalPageMargin
++        opacity: !root.hasNotifications && notificationList.contentHeight < 1 ? 1.0 : 0.0
++
++        //% "You don't have any notifications right now"
++        text: qsTrId("lipstick-jolla-home-la-you_dont_have_any_notifications")
++        height: opacity > 0 ? implicitHeight + Theme.paddingLarge : 0
++
++        Behavior on opacity { FadeAnimation { duration: 300 } }
++    }
++}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversWidgets.qml
@@ -2275,7 +2449,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
          return windowFound ? modelIdx : -1
      }
  
-@@ -382,12 +440,32 @@
+@@ -382,12 +440,58 @@
          visible: Lipstick.compositor.switcherLayer.scale === 1.0 && switcherRoot.contentHeight > switcherRoot.height
      }
  
@@ -2288,11 +2462,36 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 +        eventsViewVisible: switcherRoot.visible
 +    }
 +
++    // ada-home-sailfish: Settings → Layout → Notifications: Second page
++    ConfigurationValue {
++        id: notificationsPlaceConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/notifications_place"
++        defaultValue: 0 // 0 = Top menu, 1 = second page
++    }
++
++    // ada-home-sailfish: notifications below weather and calendar (stock Events order)
++    Loader {
++        id: coversNotifications
++
++        y: coversWidgets.y + coversWidgets.height
++        // Space taken on the page. Not the Loader's height: an explicit height
++        // would resize the item, and without one the Loader keeps the last
++        // item's height after it is switched off.
++        readonly property real contentHeight: active && item ? item.height : 0
++
++        width: switcherRoot.width
++        active: notificationsPlaceConfig.value === 1
++        sourceComponent: CoversNotifications {
++            pageVisible: switcherRoot.visible
++        }
++    }
++
 +    // ada-home-sailfish: header above the covers, only while apps are running
 +    SectionHeader {
 +        id: runningAppsHeader
 +
-+        y: coversWidgets.y + coversWidgets.height
++        y: coversNotifications.y + coversNotifications.contentHeight
 +        visible: switcherRoot.count > 0
 +        text: "Running apps"
 +    }
@@ -2305,11 +2504,12 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 -        y: switcherGrid.baseY
 +        y: runningAppsHeader.visible
 +           ? runningAppsHeader.y + runningAppsHeader.height
-+           : switcherGrid.baseY + coversWidgets.height + (coversWidgets.height > 0 ? Theme.paddingLarge : 0)
++           : coversNotifications.y + coversNotifications.contentHeight
++             + (coversWidgets.height + coversNotifications.contentHeight > 0 ? Theme.paddingLarge : 0)
          height: switcherGrid.implicitHeight <= switcherRoot.height - y
                  ? switcherRoot.height - y
                  : switcherGrid.implicitHeight + switcherGrid.rowSpacing - 1
-@@ -410,7 +488,8 @@
+@@ -410,7 +514,8 @@
              readonly property int largeItemCount: largeColumns * largeRows
              property QtObject ngfEffect
  
@@ -2319,7 +2519,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
              statusBarHeight: Lipstick.compositor.multitaskingHome ? switcherRoot.statusBarHeight : 0
  
              function updateColumns() {
-@@ -426,7 +505,8 @@
+@@ -426,7 +531,8 @@
  
              function doUpdateColumns() {
                  var cols = switcherGrid.largeColumns
@@ -2329,7 +2529,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                      cols = switcherGrid.smallColumns
                  if (cols !== switcherGrid.columns) {
                      scrollAnimation.stop()
-@@ -454,7 +534,8 @@
+@@ -454,7 +560,8 @@
                  ScriptAction {
                      script: {
                          var cols = switcherGrid.largeColumns
@@ -2339,7 +2539,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                              cols = switcherGrid.smallColumns
                          switcherGrid.columns = cols
                          switcherGrid.coverSize = switcherGrid.columns == switcherGrid.largeColumns
-@@ -558,6 +639,14 @@
+@@ -558,6 +665,14 @@
                                  Lipstick.compositor.launcherLayer.hide()
                              }
                              if (running) {
@@ -2354,7 +2554,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
                                  switcherRoot.minimizeLaunchingWindows()
                                  minimized = false
                                  Lipstick.compositor.windowToFront(windowId)
-@@ -639,7 +728,8 @@
+@@ -639,7 +754,8 @@
              Binding {
                  target: Lipstick.compositor.homeLayer
                  property: "statusMargin"
@@ -2367,7 +2567,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/Switcher.qml b/usr/share/
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,161 @@
 +/*
 + * ada-home-sailfish: notification list inside the Top menu.
 + * Reuses the stock notification components from ../notifications.
@@ -2379,6 +2579,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +import org.nemomobile.lipstick 0.1
 +import org.nemomobile.devicelock 1.0
 +import com.jolla.lipstick 0.1
++import Nemo.Configuration 1.0
 +import "../notifications" as Notifications
 +
 +Column {
@@ -2389,6 +2590,15 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +    // (the Top menu can also be opened on the lock screen).
 +    readonly property bool allowed: Desktop.deviceLockState === DeviceLock.Unlocked
 +    readonly property bool hasNotifications: notificationList.count > 0
++    // Settings → Layout → Notifications: Second page leaves only the gear here
++    readonly property bool showNotifications: placeConfig.value !== 1
++
++    ConfigurationValue {
++        id: placeConfig
++
++        key: "/desktop/lipstick-jolla-home/ada_home/notifications_place"
++        defaultValue: 0 // 0 = Top menu, 1 = second page
++    }
 +
 +    // The Top menu's settings (gear) menu opens below the header
 +    property bool settingsMenuOpen
@@ -2444,7 +2654,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +                    right: clearButton.left
 +                    verticalCenter: parent.verticalCenter
 +                }
-+                visible: root.allowed
++                visible: root.allowed && root.showNotifications
 +                text: "Notifications"
 +                color: Theme.highlightColor
 +                font.pixelSize: Theme.fontSizeSmall
@@ -2459,7 +2669,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +                    rightMargin: Theme.paddingMedium
 +                    verticalCenter: parent.verticalCenter
 +                }
-+                visible: root.allowed && notificationList.hasRemovableNotifications
++                visible: root.allowed && root.showNotifications && notificationList.hasRemovableNotifications
 +                preferredWidth: Theme.buttonWidthExtraSmall
 +                text: "Clear all"
 +                onClicked: notificationList.removeAll()
@@ -2487,7 +2697,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +        x: Theme.horizontalPageMargin
 +        width: parent.width - 2 * Theme.horizontalPageMargin
 +        height: visible ? implicitHeight + Theme.paddingLarge : 0
-+        visible: root.allowed && !root.hasNotifications
++        visible: root.allowed && root.showNotifications && !root.hasNotifications
 +        text: "No notifications"
 +        color: Theme.secondaryHighlightColor
 +        font.pixelSize: Theme.fontSizeSmall
@@ -2496,7 +2706,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +    Item {
 +        width: parent.width
 +        height: visible ? notificationList.contentHeight : 0
-+        visible: root.allowed
++        visible: root.allowed && root.showNotifications
 +
 +        Notifications.NotificationListView {
 +            id: notificationList
@@ -2508,7 +2718,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/topmenu/TopMenuNotifications.qml b
 +            // Same trick as the Events view: a tall view is fully populated
 +            // without binding height to contentHeight.
 +            height: Screen.height * 1000
-+            model: notificationModel.populated ? notificationModel : null
++            model: root.showNotifications && notificationModel.populated ? notificationModel : null
 +            viewVisible: root.menuExposed && root.allowed
 +            directSwipe: true
 +        }
