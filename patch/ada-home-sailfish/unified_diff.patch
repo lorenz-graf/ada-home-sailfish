@@ -525,7 +525,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeAppPicker.qml b/usr
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml
-@@ -0,0 +1,844 @@
+@@ -0,0 +1,868 @@
 +/*
 + * ada-home-sailfish: the Home page.
 + * - Big clock and date. Tap: opens the chosen app (default Clock /
@@ -551,6 +551,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +import Nemo.Notifications 1.0 as SystemNotifications
 +import org.nemomobile.lipstick 0.1
 +import com.jolla.lipstick 0.1
++import "../notifications" as AdaNotifications
 +
 +Item {
 +    id: root
@@ -827,6 +828,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    ConfigurationValue { id: hideStatusBarConfig; key: root._path + "hide_status_bar"; defaultValue: false }
 +    ConfigurationValue { id: hideAlarmBellConfig; key: root._path + "hide_alarm_bell"; defaultValue: false }
 +    ConfigurationValue { id: hideStatusClockConfig; key: root._path + "hide_status_clock"; defaultValue: true }
++    ConfigurationValue { id: statusNotificationsConfig; key: root._path + "status_notifications"; defaultValue: true }
 +    ConfigurationValue { id: appsGapConfig; key: root._path + "apps_gap"; defaultValue: 0 }
 +    ConfigurationValue { id: marginSideConfig; key: root._path + "margin_side"; defaultValue: 0 }
 +    ConfigurationValue { id: marginTopConfig; key: root._path + "margin_top"; defaultValue: 0 }
@@ -921,6 +923,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        _statusAlarmBell = _findAlarmBell(_statusBar)
 +    }
 +
++    // Settings: Notification icons. One icon per app with notifications at
++    // the end of the status bar's left icons, everywhere this status bar shows.
++    AdaNotifications.StatusBarNotifications {
++        statusBar: root._statusBar
++        shown: statusNotificationsConfig.value
++    }
++
 +    Binding {
 +        target: root._statusBar
 +        property: "color"
@@ -931,6 +940,16 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +    Binding {
 +        target: root._statusClock
 +        property: "opacity"
++        value: 0
++        when: root._hidingStatusClock
++    }
++
++    // Also no room for it: a status bar patch can put the clock into the
++    // left icon row, where a transparent clock left a gap before the next
++    // icon. A Row skips zero-width items (no spacing either).
++    Binding {
++        target: root._statusClock
++        property: "width"
 +        value: 0
 +        when: root._hidingStatusClock
 +    }
@@ -950,6 +969,11 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeFavourites.qml b/us
 +        } else if (_hiddenStatusClock) {
 +            if (_hiddenStatusClock.opacity === 0) {
 +                _hiddenStatusClock.opacity = 1
++            }
++            // Its width is bound in stock and in the known patches, so the
++            // Binding gives it back; only a plain width is still 0 here
++            if (_hiddenStatusClock.width === 0 && _hiddenStatusClock.visible) {
++                _hiddenStatusClock.width = _hiddenStatusClock.implicitWidth
 +            }
 +            _hiddenStatusClock = null
 +        }
@@ -1420,7 +1444,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettingsChoice.qml 
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml
-@@ -0,0 +1,283 @@
+@@ -0,0 +1,291 @@
 +/*
 + * ada-home-sailfish: Home settings (opened by long-pressing empty space).
 + * Values live in dconf under /desktop/lipstick-jolla-home/ada_home/
@@ -1458,6 +1482,7 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +    ConfigurationValue { id: hideStatusBar; key: settings._path + "hide_status_bar"; defaultValue: false }
 +    ConfigurationValue { id: hideAlarmBell; key: settings._path + "hide_alarm_bell"; defaultValue: false }
 +    ConfigurationValue { id: hideStatusClock; key: settings._path + "hide_status_clock"; defaultValue: true }
++    ConfigurationValue { id: statusNotifications; key: settings._path + "status_notifications"; defaultValue: true }
 +    ConfigurationValue { id: weatherHeader; key: settings._path + "weather_header"; defaultValue: true }
 +    ConfigurationValue { id: smallCovers; key: settings._path + "small_covers"; defaultValue: true }
 +    ConfigurationValue { id: notificationsPlace; key: settings._path + "notifications_place"; defaultValue: 0 }
@@ -1662,6 +1687,13 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/eventsview/HomeSettings.qml b/usr/
 +                description: "On Home only. In apps the status bar clock stays"
 +                checked: hideStatusClock.value
 +                onToggled: hideStatusClock.value = !hideStatusClock.value
++            }
++
++            HomeSettingsSwitch {
++                label: "Notification icons"
++                description: "In the status bar: an icon for each app with notifications"
++                checked: statusNotifications.value
++                onToggled: statusNotifications.value = !statusNotifications.value
 +            }
 +
 +            HomeSettingsSwitch {
@@ -2011,6 +2043,115 @@ diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/NotificationStandard
  
                          contentLeftMargin: groupHeader.textLeftMargin
                          summaryText: notification ? notification.summary : ""
+diff -ruN a/usr/share/lipstick-jolla-home-qt5/notifications/StatusBarNotifications.qml b/usr/share/lipstick-jolla-home-qt5/notifications/StatusBarNotifications.qml
+--- /dev/null
++++ b/usr/share/lipstick-jolla-home-qt5/notifications/StatusBarNotifications.qml
+@@ -0,0 +1,105 @@
++// ada-home-sailfish: one icon per app with notifications in the status bar
++// (stock only shows high-priority ones on the lock screen).
++//
++// No status bar file is changed, so status bar patches still apply: this
++// item is put at the end of the status bar's left icon row (the row that
++// holds the battery indicator), found at runtime. If a patch rebuilds the
++// status bar so the row can't be found, nothing is shown.
++
++import QtQuick 2.6
++import Sailfish.Silica 1.0
++import Sailfish.Lipstick 1.0
++import com.jolla.lipstick 0.1
++import org.nemomobile.lipstick 0.1
++
++SilicaItem {
++    id: root
++
++    // The status bar to put the icons into
++    property Item statusBar
++    property bool shown: true
++
++    // The left icon row of the status bar, or null
++    readonly property Item _row: _findRow(statusBar)
++
++    readonly property real _iconSize: !!_row ? _row.height : Theme.iconSizeExtraSmall
++    readonly property real _slotWidth: _iconSize + content.spacing
++
++    // Room left of the centre of the bar, keeping space for a centred clock
++    readonly property int _maximumCount: {
++        if (!_row || !_row.parent) {
++            return 0
++        }
++        var used = 0
++        for (var i = 0; i < _row.children.length; ++i) {
++            var child = _row.children[i]
++            if (child !== root && child.visible && child.width > 0) {
++                used = Math.max(used, child.x + child.width)
++            }
++        }
++        var room = _row.parent.width / 2 - Theme.itemSizeSmall - _row.x - used - _row.spacing
++        return Math.max(0, Math.floor((room + content.spacing) / _slotWidth))
++    }
++    readonly property int _appCount: repeater.count
++    // With more apps than room, the last place shows "+N" instead of an icon
++    readonly property int _iconCount: _appCount > _maximumCount ? Math.max(0, _maximumCount - 1) : _appCount
++
++    // BatteryStatusIndicator (has usbPreparingMode); its parent is the row
++    function _findRow(item) {
++        if (!item) {
++            return null
++        }
++        if (item.hasOwnProperty("usbPreparingMode")) {
++            return item.parent
++        }
++        for (var i = 0; i < item.children.length; ++i) {
++            var found = _findRow(item.children[i])
++            if (found) {
++                return found
++            }
++        }
++        return null
++    }
++
++    parent: _row
++    visible: !!_row && shown && _appCount > 0 && _maximumCount > 0
++    width: content.width
++    height: content.height
++    anchors.verticalCenter: !!parent ? parent.verticalCenter : undefined
++
++    JollaNotificationGroupModel {
++        id: groupModel
++
++        // Same notifications as the Top menu list, one entry per app
++        groupProperty: "disambiguatedAppName"
++        sourceModel: JollaNotificationListModel {}
++    }
++
++    Row {
++        id: content
++
++        spacing: Theme.paddingSmall
++
++        Repeater {
++            id: repeater
++
++            model: groupModel.populated ? groupModel : null
++
++            NotificationAppIcon {
++                width: root._iconSize
++                height: root._iconSize
++                visible: index < root._iconCount
++                iconSource: modelData.appIcon
++                iconColor: modelData.color
++            }
++        }
++
++        Label {
++            visible: root._appCount > root._iconCount
++            anchors.verticalCenter: parent.verticalCenter
++            text: "+" + (root._appCount - root._iconCount)
++            color: palette.primaryColor
++            font.pixelSize: Theme.fontSizeExtraSmall
++        }
++    }
++}
 diff -ruN a/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml b/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml
 --- /dev/null
 +++ b/usr/share/lipstick-jolla-home-qt5/switcher/CoversAlarms.qml

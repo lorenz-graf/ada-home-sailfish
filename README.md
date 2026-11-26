@@ -84,6 +84,7 @@ All values are stored in dconf under `/desktop/lipstick-jolla-home/ada_home/`.
 | | Text color (Ambience / Ambience highlight / White / Black) | Ambience | `text_color` |
 | | Hide status bar (on Home; touching Home shows it for a moment) | Off | `hide_status_bar` |
 | | Hide status bar clock (on Home only; in apps it stays) | On | `hide_status_clock` |
+| | Notification icons (in the status bar: an icon for each app with notifications) | On | `status_notifications` |
 | | Hide alarm bell (in the status bar; alarms stay listed on the second page) | Off | `hide_alarm_bell` |
 | | Auto show keyboard (in the app list) | On | `auto_keyboard` |
 | Gestures | Swipe left app, Swipe right app | Calculator, Contacts | `swipe_left_app`, `swipe_right_app` |
@@ -157,7 +158,7 @@ Patchmanager applies the active patches one after another. Two patches can chang
 
 **What to expect from other patches** (not tested unless listed above):
 
-- **Status bar patches** should work: AdaHome changes no status bar file. On Home it only sets the status bar colour and hides the status bar clock (and optionally the alarm bell) at runtime. A patch that replaces the clock or the alarm icon with its own item may stay visible on Home.
+- **Status bar patches** should work: AdaHome changes no status bar file. On Home it only sets the status bar colour and hides the status bar clock (and optionally the alarm bell) at runtime; the notification icons are added to the status bar's left icons at runtime too. A patch that replaces the clock or the alarm icon with its own item may stay visible on Home.
 - **App Grid, Silica and app patches** don't touch the files AdaHome changes.
 - **Events view patches:** Home replaces the Events list (it stays only on the lock screen), so anything a patch adds to the Events view won't show on Home.
 - **Cover patches:** changes to the cover itself (`SwitcherItem.qml`) should work. Patches that change the covers page layout (`Switcher.qml`) may conflict.
@@ -194,7 +195,7 @@ Patchmanager serves patched copies of the homescreen's QML (`/usr/share/lipstick
 - adds the Home page (`eventsview/HomeFavourites.qml`, `HomeAppPicker.qml`, `HomeSettings*.qml`, `HomeTextShadow.qml`) to the Events window (`eventsview/EventsWindow.qml`); the stock Events list stays for the lock screen. The loading screen is part of the Home page and follows the covers page's own launch tracking
 - adds weather, active alarms and calendar above the covers (`switcher/CoversWidgets.qml`, `switcher/CoversAlarms.qml`, `switcher/Switcher.qml`)
 - adds the notifications to the Top menu (`topmenu/TopMenuNotifications.qml`, `topmenu/TopMenu.qml`, `notifications/*`), or to the second page (`switcher/CoversNotifications.qml`), both with the stock notification and account feed lists. Outside the stock Events window the feed list needs a few workarounds: a stand-in for `eventsWindowLoader` (a lipstick object only the Events window has), its own check for removable feed groups (`notifications/AdaFeeds.js`; the Nextcloud plugin's own flag can stay off, so stock Clear all skipped it), and in `eventsview/EventFeedList.qml` a `viewVisible` property plus `showingInActiveView` for the feeds (without it the Nextcloud feed never reloaded new items). In the Top menu, feed items get draggable while the menu is open, so they swipe away directly like notifications
-- leaves the status bar files alone: the Home page sets the status bar's colour, hides its clock (and optionally the whole bar) while Home is shown, and optionally hides the alarm bell, all at runtime, so status bar patches still apply. If a patch rebuilds the status bar so the clock or the bell can't be found, they just stay visible. The lock screen has its own status bar and isn't changed
+- leaves the status bar files alone: the Home page sets the status bar's colour, hides its clock (and optionally the whole bar) while Home is shown, optionally hides the alarm bell, and adds the notification icons after the status bar's left icons, all at runtime, so status bar patches still apply. If a patch rebuilds the status bar so the clock or the bell can't be found, they just stay visible (and the notification icons don't show). The lock screen has its own status bar and isn't changed
 
 ## Build
 
