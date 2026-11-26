@@ -8,7 +8,7 @@ A Patchmanager patch for **Sailfish OS** that turns the homescreen into a minima
 |---|---|---|
 | Home (after leaving an app, unlocking, the home key) | Covers of running apps | Big clock and date, up to 8 apps as plain text |
 | Second page (swipe in from the left or right edge) | Events: notifications, weather, calendar | Weather, active Alarms, Calendar and Running apps (section headers, small covers 3 per row, dimmed background) |
-| Notifications | Events page | Top menu (pull down from the top), below the toggles; or on the second page, as in stock (Settings → Layout → Notifications) |
+| Notifications | Events page | Top menu (pull down from the top), below the toggles; or on the second page, as in stock (Settings → Layout → Notifications). An icon per app with notifications in the status bar |
 
 Tested on the Jolla Phone (2026), Sailfish OS 5.2.0.22.
 
@@ -30,6 +30,7 @@ The screenshots use stock Sailfish ambiences; notifications, calendar entries, a
 - **Double tap on empty space:** turns the display off and locks, like the stock Top menu lock button (off by default).
 - **Loading screen:** while an app starts, its icon, name and a spinner show until the app's window appears (tap to hide; hides by itself after 10 s).
 - On Home the status bar uses the Home text colour and hides its clock (Home has its own). Optionally it stays hidden until you touch Home. Elsewhere it stays as it is.
+- The status bar shows an icon for each app with notifications, after its left icons (Settings → Appearance → Notification icons). It's the same status bar on Home, the second page and the Top menu; the lock screen keeps its stock one.
 
 ## Second page
 
